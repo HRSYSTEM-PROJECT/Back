@@ -30,6 +30,7 @@ export class UserService {
     private readonly clerkService: ClerkService
   ) {}
 
+  //-------Crear nuevo usuario--------/
   async create(createUserDto: CreateUserDto, user: AuthenticatedUser) {
     //Validar email único
     const userFound = await this.userRepository.findOne({
@@ -125,8 +126,14 @@ export class UserService {
     };
   }
 
+  //-----Encontrar todos los usuarios----//
   async findAll(): Promise<User[]> {
     return this.userRepository.find();
+  }
+
+  //-----Encontrar todos los usuarios de una empersa-----//
+  async findAllByCompany(companyId: string): Promise<User[]> {
+    return this.userRepository.find({ where: { company: { id: companyId } } });
   }
 
   async findOne(id: string): Promise<User> {

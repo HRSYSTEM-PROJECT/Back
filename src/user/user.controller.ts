@@ -80,6 +80,27 @@ export class UserController {
     return this.userService.findAll();
   }
 
+  @UseGuards(ClerkAuthGuard)
+  @Get('/byCompany')
+  @ApiOperation({
+    summary: 'Obtener todos los usuarios de una Empresa',
+    description:
+      'Retorna una lista de todos los usuarios registrados en la empresa del usuario logueado'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de usuarios obtenida exitosamente',
+    type: [UserResponseDto]
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Error interno del servidor'
+  })
+  async findAllByCompany(@Req() req: AuthRequest): Promise<User[]> {
+    const { companyId } = req.user;
+    return this.userService.findAllByCompany(companyId);
+  }
+
   @Get(':id')
   @ApiOperation({
     summary: 'Obtener usuario por ID',
