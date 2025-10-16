@@ -8,10 +8,12 @@ import { Chat } from './entities/chat.entity';
 import { Message } from './entities/message.entity';
 import { ChatParticipant } from './entities/chat-participant.entity';
 import { User } from '../user/entities/user.entity';
+import { UserModule } from 'src/user/user.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Chat, Message, ChatParticipant, User]),
+    UserModule,
     JwtModule.register({}) // Para validar tokens en WebSockets
   ],
   controllers: [ChatController],
