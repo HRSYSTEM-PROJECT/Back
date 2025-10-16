@@ -38,14 +38,14 @@ export class CreateRegisterDto {
 
   @ApiProperty({
     description:
-      'La contraseña debe tener al menos 8 caracteres y máximo 15, debe poseer al menos una minúscula, una mayúscula, un número y un caracter especial.',
-    example: 'Contrasena123!'
+      'La contraseña debe tener al menos 12 caracteres y máximo 25, debe poseer al menos una minúscula, una mayúscula y un número.',
+    example: 'Contrasena123'
   })
   @IsString()
   @Length(12, 25)
-  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*])/, {
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])/, {
     message:
-      'La contraseña debe tener al menos 12 caracteres y máximo 25, debe poseer al menos una minúscula, una mayúscula, un número.'
+      'La contraseña debe tener al menos 12 caracteres y máximo 25, debe poseer al menos una minúscula, una mayúscula y un número.'
   })
   password: string;
 
