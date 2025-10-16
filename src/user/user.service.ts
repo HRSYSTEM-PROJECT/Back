@@ -133,7 +133,10 @@ export class UserService {
 
   //-----Encontrar todos los usuarios de una empersa-----//
   async findAllByCompany(companyId: string): Promise<User[]> {
-    return this.userRepository.find({ where: { company: { id: companyId } } });
+    return this.userRepository.find({
+      where: { company: { id: companyId } },
+      relations: ['role']
+    });
   }
 
   async findOne(id: string): Promise<User> {
