@@ -9,7 +9,8 @@ import {
   Query,
   Request,
   HttpCode,
-  HttpStatus
+  HttpStatus,
+  UseGuards
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -19,9 +20,11 @@ import {
 } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/send-message.dto';
+import { ClerkAuthGuard } from '../auth/guards/clerk.guard';
 
 @ApiTags('Chat')
 @ApiBearerAuth()
+@UseGuards(ClerkAuthGuard)
 @Controller('chat')
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}

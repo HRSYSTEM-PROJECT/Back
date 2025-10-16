@@ -7,13 +7,13 @@ import { User } from 'src/user/entities/user.entity';
 import { Plan } from 'src/plan/entities/plan.entity';
 import { Suscripcion } from 'src/suscripcion/entities/suscripcion.entity';
 import { Rol } from 'src/rol/entities/rol.entity';
-import { ClerkService } from './clerk.service';
-import { UserModule } from 'src/user/user.module';
+import { Auth0Service } from './auth0.service';
+import { HttpModule } from '@nestjs/axios';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Company, Plan, Suscripcion, Rol]),
-    UserModule
+    HttpModule
   ],
   controllers: [AuthController],
   providers: [AuthService, ClerkService],

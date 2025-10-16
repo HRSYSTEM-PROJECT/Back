@@ -19,6 +19,7 @@ import { UserModule } from './user/user.module';
 import { AbsenceModule } from './absence/absence.module';
 import { ContactModule } from './contact/contact.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { ChatModule } from './chat/chat.module';
 import { JWT_SECRET } from './config/envs';
 
 //--------------SEEDER----------------//
