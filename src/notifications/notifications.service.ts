@@ -12,13 +12,30 @@ import { Notification, NotificationType } from './entities/notification.entity';
 import { NotificationConfig } from './entities/notification-config.entity';
 import { NotificationsGateway } from './notifications.gateway';
 import { UpdateNotificationConfigDto } from './dto/update-notification-config.dto';
-import { SENDGRID_API_KEY, SENDGRID_FROM_EMAIL } from '../config/envs';
+import { SENDGRID_API_KEY, SENDGRID_FROM } from '../config/envs';
 
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
   private readonly fromEmail: string;
-}
+
+  /**
+   * Estado simple para que el frontend consulte cuándo corrió cada cron por última vez
+   * y si la última ejecución fue OK o falló.
+   */
+  private cronStatus: Record<
+    string,
+    {
+      lastRun: Date | null;
+      status: 'success' | 'error' | 'never';
+      errorMessage?: string;
+    }
+  > = {
+    checkExpiringSubscriptions: { lastRun: null, status: 'never' },
+    checkExpiredSubscriptions: { lastRun: null, status: 'never' },
+    checkBirthdays: { lastRun: null, status: 'never' },
+    checkHolidays: { lastRun: null, status: 'never' }
+  };
 
   constructor(
     @InjectRepository(User)
@@ -48,14 +65,19 @@ export class NotificationsService {
     this.logger.log('SendGrid initialized successfully');
   }
 
-  private async sendEmail(to: string, subject: string, html: string, text?: string) {
+  private async sendEmail(
+    to: string,
+    subject: string,
+    html: string,
+    text?: string
+  ) {
     try {
       const msg = {
         to,
-        from: SENDGRID_FROM_EMAIL || 'noreply@tuempresa.com',
+        from: SENDGRID_FROM || 'noreply@tuempresa.com',
         subject,
         text: text || html.replace(/<[^>]*>/g, ''), // Convert HTML to plain text
-        html,
+        html
       };
       
       await sgMail.send(msg);
@@ -66,94 +88,156 @@ export class NotificationsService {
     }
   }
 
+  // -----------------------
+  // Helpers para cron status
+  // -----------------------
+  private updateCronStatus(
+    name: string,
+    status: 'success' | 'error',
+    errorMessage?: string
+  ) {
+    this.cronStatus[name] = {
+      lastRun: new Date(),
+      status,
+      errorMessage
+    };
+  }
+
+  getCronStatus() {
+    return this.cronStatus;
+  }
+
+  // Devuelve notificaciones recientes generadas por crons (filtramos por tipos automáticos)
+  async getRecentCronNotifications(limit = 20) {
+    const automaticTypes: NotificationType[] = [
+      'subscription_expiring' as NotificationType,
+      'subscription_expired' as NotificationType,
+      'birthday_reminder' as NotificationType,
+      'holiday_reminder' as NotificationType,
+      'evaluation_reminder' as NotificationType
+    ];
+
+    return this.notificationRepository.find({
+      where: { type: automaticTypes as any, is_deleted: false },
+      order: { created_at: 'DESC' },
+      take: limit
+    });
+  }
+
   // 🔔 CRON: Verificar suscripciones que expiran en 7 días
   @Cron('0 9 * * *') // Todos los días a las 9:00 AM
   async checkExpiringSubscriptions() {
+    const cronName = 'checkExpiringSubscriptions';
     this.logger.log('🔍 Verificando suscripciones que expiran en 7 días...');
+    try {
+      const sevenDaysFromNow = new Date();
+      sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
-    const sevenDaysFromNow = new Date();
-    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+      const expiringSubscriptions = await this.suscripcionRepository
+        .createQueryBuilder('suscripcion')
+        .leftJoinAndSelect('suscripcion.company', 'company')
+        .leftJoinAndSelect('suscripcion.plan', 'plan')
+        .where('DATE(suscripcion.end_date) = DATE(:sevenDaysFromNow)', {
+          sevenDaysFromNow
+        })
+        .getMany();
 
-    const expiringSubscriptions = await this.suscripcionRepository
-      .createQueryBuilder('suscripcion')
-      .leftJoinAndSelect('suscripcion.company', 'company')
-      .leftJoinAndSelect('suscripcion.plan', 'plan')
-      .where('DATE(suscripcion.end_date) = DATE(:sevenDaysFromNow)', {
-        sevenDaysFromNow
-      })
-      .getMany();
+      for (const subscription of expiringSubscriptions) {
+        await this.sendSubscriptionExpiryNotification(subscription);
+      }
 
-    for (const subscription of expiringSubscriptions) {
-      await this.sendSubscriptionExpiryNotification(subscription);
+      this.logger.log(
+        `📧 Enviadas ${expiringSubscriptions.length} notificaciones de expiración`
+      );
+      this.updateCronStatus(cronName, 'success');
+    } catch (error) {
+      this.logger.error('❌ Error en checkExpiringSubscriptions:', error);
+      this.updateCronStatus(cronName, 'error', String(error));
     }
-
-    this.logger.log(
-      `📧 Enviadas ${expiringSubscriptions.length} notificaciones de expiración`
-    );
   }
 
   // 🔔 CRON: Verificar suscripciones expiradas
   @Cron('0 10 * * *') // Todos los días a las 10:00 AM
   async checkExpiredSubscriptions() {
+    const cronName = 'checkExpiredSubscriptions';
     this.logger.log('🔍 Verificando suscripciones expiradas...');
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+      const expiredSubscriptions = await this.suscripcionRepository
+        .createQueryBuilder('suscripcion')
+        .leftJoinAndSelect('suscripcion.company', 'company')
+        .leftJoinAndSelect('suscripcion.plan', 'plan')
+        .where('DATE(suscripcion.end_date) < DATE(:today)', { today })
+        .getMany();
 
-    const expiredSubscriptions = await this.suscripcionRepository
-      .createQueryBuilder('suscripcion')
-      .leftJoinAndSelect('suscripcion.company', 'company')
-      .leftJoinAndSelect('suscripcion.plan', 'plan')
-      .where('DATE(suscripcion.end_date) < DATE(:today)', { today })
-      .getMany();
+      for (const subscription of expiredSubscriptions) {
+        await this.sendSubscriptionExpiredNotification(subscription);
+      }
 
-    for (const subscription of expiredSubscriptions) {
-      await this.sendSubscriptionExpiredNotification(subscription);
+      this.logger.log(
+        `📧 Enviadas ${expiredSubscriptions.length} notificaciones de expiración`
+      );
+      this.updateCronStatus(cronName, 'success');
+    } catch (error) {
+      this.logger.error('❌ Error en checkExpiredSubscriptions:', error);
+      this.updateCronStatus(cronName, 'error', String(error));
     }
-
-    this.logger.log(
-      `📧 Enviadas ${expiredSubscriptions.length} notificaciones de expiración`
-    );
   }
 
   // 🔔 CRON: Recordatorio de cumpleaños
   @Cron('0 8 * * *') // Todos los días a las 8:00 AM
   async checkBirthdays() {
+    const cronName = 'checkBirthdays';
     this.logger.log('🎂 Verificando cumpleaños de empleados...');
+    try {
+      const today = new Date();
+      const month = today.getMonth() + 1;
+      const day = today.getDate();
 
-    const today = new Date();
-    const month = today.getMonth() + 1;
-    const day = today.getDate();
+      const birthdayEmployees = await this.employeeRepository
+        .createQueryBuilder('employee')
+        .leftJoinAndSelect('employee.company', 'company')
+        .where('EXTRACT(MONTH FROM employee.birthdate) = :month', { month })
+        .andWhere('EXTRACT(DAY FROM employee.birthdate) = :day', { day })
+        .getMany();
 
-    const birthdayEmployees = await this.employeeRepository
-      .createQueryBuilder('employee')
-      .leftJoinAndSelect('employee.company', 'company')
-      .where('EXTRACT(MONTH FROM employee.birthdate) = :month', { month })
-      .andWhere('EXTRACT(DAY FROM employee.birthdate) = :day', { day })
-      .getMany();
+      for (const employee of birthdayEmployees) {
+        await this.sendBirthdayNotification(employee);
+      }
 
-    for (const employee of birthdayEmployees) {
-      await this.sendBirthdayNotification(employee);
+      this.logger.log(
+        `🎉 Enviadas ${birthdayEmployees.length} notificaciones de cumpleaños`
+      );
+      this.updateCronStatus(cronName, 'success');
+    } catch (error) {
+      this.logger.error('❌ Error en checkBirthdays:', error);
+      this.updateCronStatus(cronName, 'error', String(error));
     }
-
-    this.logger.log(
-      `🎉 Enviadas ${birthdayEmployees.length} notificaciones de cumpleaños`
-    );
   }
 
   // 🔔 CRON: Recordatorios de feriados
   @Cron('0 7 * * *') // Todos los días a las 7:00 AM
   async checkHolidays() {
+    const cronName = 'checkHolidays';
     this.logger.log('🎊 Verificando feriados...');
 
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    try {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // Obtener todas las empresas con sus configuraciones
-    const companies = await this.companyRepository.find();
+      // Obtener todas las empresas con sus configuraciones
+      const companies = await this.companyRepository.find();
 
-    for (const company of companies) {
-      await this.checkCompanyHolidays(company, tomorrow);
+      for (const company of companies) {
+        await this.checkCompanyHolidays(company, tomorrow);
+      }
+
+      this.updateCronStatus(cronName, 'success');
+    } catch (error) {
+      this.logger.error('❌ Error en checkHolidays:', error);
+      this.updateCronStatus(cronName, 'error', String(error));
     }
   }
 
@@ -172,6 +256,31 @@ export class NotificationsService {
       '👤 Nuevo empleado agregado',
       `Se agregó ${employeeName}${position ? ` como ${position}` : ''} al equipo`,
       'employee_added' as NotificationType
+    );
+  }
+
+  // 🚫 Notificar ausencia agregada
+  async notifyAbsenceAdded(
+    companyId: string,
+    employeeName: string,
+    startDate: Date,
+    endDate: Date,
+    description?: string
+  ) {
+    this.logger.log(`🚫 Notificando ausencia agregada: ${employeeName}`);
+
+    const startDateStr = startDate.toLocaleDateString();
+    const endDateStr = endDate.toLocaleDateString();
+    const dateRange =
+      startDateStr === endDateStr
+        ? startDateStr
+        : `${startDateStr} - ${endDateStr}`;
+
+    await this.createNotification(
+      companyId,
+      '🚫 Nueva ausencia registrada',
+      `Se registró una ausencia para ${employeeName} del ${dateRange}${description ? `: ${description}` : ''}`,
+      'absence_added' as NotificationType
     );
   }
 
@@ -679,4 +788,3 @@ export class NotificationsService {
     return await this.configRepository.save(config);
   }
 }
-
