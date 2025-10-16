@@ -10,6 +10,7 @@ import { User } from '../../user/entities/user.entity';
 
 export enum NotificationType {
   EMPLOYEE_ADDED = 'employee_added',
+  ABSENCE_ADDED = 'absence_added',
   PAYROLL_PROCESSED = 'payroll_processed',
   PRODUCTIVITY_REPORT = 'productivity_report',
   CATEGORY_UPDATE = 'category_update',

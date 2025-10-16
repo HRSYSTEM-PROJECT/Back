@@ -18,7 +18,6 @@ import { SENDGRID_API_KEY, SENDGRID_FROM_EMAIL } from '../config/envs';
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
   private readonly fromEmail: string;
-}
 
   constructor(
     @InjectRepository(User)
@@ -172,6 +171,31 @@ export class NotificationsService {
       '👤 Nuevo empleado agregado',
       `Se agregó ${employeeName}${position ? ` como ${position}` : ''} al equipo`,
       'employee_added' as NotificationType
+    );
+  }
+
+  // 🚫 Notificar ausencia agregada
+  async notifyAbsenceAdded(
+    companyId: string,
+    employeeName: string,
+    startDate: Date,
+    endDate: Date,
+    description?: string
+  ) {
+    this.logger.log(`🚫 Notificando ausencia agregada: ${employeeName}`);
+
+    const startDateStr = startDate.toLocaleDateString();
+    const endDateStr = endDate.toLocaleDateString();
+    const dateRange =
+      startDateStr === endDateStr
+        ? startDateStr
+        : `${startDateStr} - ${endDateStr}`;
+
+    await this.createNotification(
+      companyId,
+      '🚫 Nueva ausencia registrada',
+      `Se registró una ausencia para ${employeeName} del ${dateRange}${description ? `: ${description}` : ''}`,
+      'absence_added' as NotificationType
     );
   }
 
