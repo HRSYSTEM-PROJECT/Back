@@ -11,16 +11,6 @@ import {
 } from 'class-validator';
 
 export class CreateUserDto {
-  @ApiProperty({
-    example: '123e4567-e89b-12d3-a456-426614174000',
-    description: 'ID del rol del usuario (obligatorio)',
-    format: 'uuid'
-  })
-  @IsString()
-  @IsNotEmpty()
-  @IsUUID()
-  role_id: string;
-
   @ApiPropertyOptional({
     example: '123e4567-e89b-12d3-a456-426614174000',
     description: 'ID del empleado asociado (opcional)',

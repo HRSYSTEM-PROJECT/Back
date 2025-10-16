@@ -5,7 +5,9 @@ import {
   Body,
   Patch,
   Param,
-  Delete
+  Delete,
+  UseGuards,
+  Req
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -19,12 +21,15 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { User } from './entities/user.entity';
+import { ClerkAuthGuard } from 'src/auth/guards/clerk.guard';
+import type { AuthRequest } from 'src/interfaces/authrequest.interface';
 
 @ApiTags('User')
 @Controller('user')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  @UseGuards(ClerkAuthGuard)
   @Post()
   @ApiOperation({
     summary: 'Crear nuevo usuario',
@@ -52,8 +57,8 @@ export class UserController {
     status: 500,
     description: 'Error interno del servidor'
   })
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.userService.create(createUserDto);
+  create(@Body() createUserDto: CreateUserDto, @Req() req: AuthRequest) {
+    return this.userService.create(createUserDto, req.user);
   }
 
   @Get()

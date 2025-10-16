@@ -1,4 +1,8 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable
+} from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
@@ -8,6 +12,9 @@ import { NotFoundException } from '@nestjs/common';
 import { Rol } from 'src/rol/entities/rol.entity';
 import { Company } from 'src/empresa/entities/empresa.entity';
 import { Employee } from 'src/empleado/entities/empleado.entity';
+import { AuthenticatedUser } from 'src/interfaces/authenticated-user.interface';
+import { Role } from 'src/rol/enums/role.enum';
+import { ClerkService } from 'src/auth/clerk.service';
 
 @Injectable()
 export class UserService {
@@ -19,10 +26,12 @@ export class UserService {
     @InjectRepository(Company)
     private readonly companiesRepository: Repository<Company>,
     @InjectRepository(Employee)
-    private readonly employeesRepository: Repository<Employee>
+    private readonly employeesRepository: Repository<Employee>,
+    private readonly clerkService: ClerkService
   ) {}
 
-  async create(createUserDto: CreateUserDto) {
+  async create(createUserDto: CreateUserDto, user: AuthenticatedUser) {
+    //Validar email único
     const userFound = await this.userRepository.findOne({
       where: { email: createUserDto.email }
     });
@@ -31,20 +40,38 @@ export class UserService {
       throw new ConflictException('Email already exist.');
     }
 
-    //Buscar rol
+    //Determinar el rol a asignar según el usuario logueado
+    let roleName: string;
+
+    switch (user.rol) {
+      case Role.SUPER_ADMIN:
+        roleName = Role.SUPER_ADMIN;
+        break;
+
+      // Ambos casos resultan en el mismo rol.
+      case Role.COMPANY_OWNER:
+      case Role.HR_MANAGER:
+        roleName = Role.HR_MANAGER;
+        break;
+
+      default:
+        throw new ForbiddenException('You are not allowed to create users.');
+    }
+
+    //Buscar rol en BD
     const rol = await this.rolesRepository.findOne({
-      where: { id: createUserDto.role_id }
+      where: { name: roleName }
     });
 
     if (!rol) {
-      throw new NotFoundException('Invalid Rol ID');
+      throw new NotFoundException(`Rol ${roleName} not found in DB`);
     }
 
-    //Buscar empresa
+    //Buscar empresa si el usuario logueado tiene company
     let company: Company | null = null;
-    if (createUserDto.company_id) {
+    if (user.companyId) {
       company = await this.companiesRepository.findOne({
-        where: { id: createUserDto.company_id }
+        where: { id: user.companyId }
       });
 
       if (!company) {
@@ -52,7 +79,7 @@ export class UserService {
       }
     }
 
-    //Buscar empleado
+    //Si se proporciona employee_id, lo asociamos
     let employee: Employee | null = null;
     if (createUserDto.employee_id) {
       employee = await this.employeesRepository.findOne({
@@ -63,11 +90,21 @@ export class UserService {
         throw new NotFoundException('Invalid Employee ID');
       }
     }
+
+    //Crear usuario en Clerk
+    const userName: string = `${createUserDto.first_name} ${createUserDto.last_name}`;
+
+    const clerkUser = await this.clerkService.createUser(
+      createUserDto.email,
+      createUserDto.password,
+      userName
+    );
+
     //Creacion y carga de user en DB
     const newUser = new User();
+    newUser.clerkId = clerkUser.id;
     newUser.role = rol;
     newUser.email = createUserDto.email;
-
     if (company) {
       newUser.company = company;
     }
@@ -82,7 +119,10 @@ export class UserService {
 
     await this.userRepository.save(newUser);
 
-    return 'User add sucssesfully';
+    return {
+      message: `User created successfully as ${roleName}`,
+      user: newUser
+    };
   }
 
   async findAll(): Promise<User[]> {

@@ -380,6 +380,7 @@ import { Plan } from 'src/plan/entities/plan.entity';
 import { Suscripcion } from 'src/suscripcion/entities/suscripcion.entity';
 import { Rol } from 'src/rol/entities/rol.entity';
 import { Role } from 'src/rol/enums/role.enum';
+import { Plans } from 'src/plan/enums/plan.enum';
 
 import { JwtService } from '@nestjs/jwt';
 
@@ -440,11 +441,11 @@ export class AuthService {
 
         //Encontrar el Plan en la DB
         const plan = await manager.findOne(Plan, {
-          where: { id: newRegister.plan_id }
+          where: { name: Plans.FREE }
         });
 
         if (!plan) {
-          throw new NotFoundException('Error, Plan id not found.');
+          throw new NotFoundException('Error, Plan Free not found.');
         }
 
         //Fechas
@@ -480,14 +481,14 @@ export class AuthService {
         }
 
         // Registro en Clerk
-        const clearkUser = await this.clerkService.createUser(
+        const clerkUser = await this.clerkService.createUser(
           newRegister.email,
           newRegister.password,
           newRegister.name
         );
 
         const newUser = new User();
-        newUser.clerkId = clearkUser.id;
+        newUser.clerkId = clerkUser.id;
         newUser.email = newRegister.email;
         newUser.first_name = newRegister.name;
         newUser.role = rol;

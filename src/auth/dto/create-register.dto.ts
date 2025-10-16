@@ -4,7 +4,8 @@ import {
   IsString,
   Length,
   MaxLength,
-  IsUrl
+  IsUrl,
+  Matches
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -41,15 +42,14 @@ export class CreateRegisterDto {
     example: 'Contrasena123!'
   })
   @IsString()
-  @Length(8, 15)
-  /*
+  @Length(12, 25)
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*])/, {
     message:
-      'La contraseña debe tener al menos 8 caracteres y máximo 15, debe poseer al menos una minúscula, una mayúscula, un número y un caracter especial.'
+      'La contraseña debe tener al menos 12 caracteres y máximo 25, debe poseer al menos una minúscula, una mayúscula, un número.'
   })
-    */
   password: string;
 
+  /*
   @ApiProperty({
     description: 'El ID del plan es obligatorio.',
     example: '3c6a2d6e-e92b-43ef-837c-451b91cb5f33'
@@ -57,6 +57,7 @@ export class CreateRegisterDto {
   @IsNotEmpty()
   @IsString()
   plan_id: string;
+*/
 
   @ApiProperty({
     description: 'La url y debe estar en formato de url.',
