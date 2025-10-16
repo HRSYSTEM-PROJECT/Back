@@ -127,7 +127,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Verificar suscripciones que expiran en 7 días
-  @Cron('30 11 * * *') // Todos los días a las 11:30 AM
+  @Cron('0 9 * * *') // Todos los días a las 9:00 AM
   async checkExpiringSubscriptions() {
     const cronName = 'checkExpiringSubscriptions';
     this.logger.log('🔍 Verificando suscripciones que expiran en 7 días...');
@@ -159,7 +159,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Verificar suscripciones expiradas
-  @Cron('30 11 * * *') // Todos los días a las 11:30 AM
+  @Cron('0 10 * * *') // Todos los días a las 10:00 AM
   async checkExpiredSubscriptions() {
     const cronName = 'checkExpiredSubscriptions';
     this.logger.log('🔍 Verificando suscripciones expiradas...');
@@ -189,7 +189,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Recordatorio de cumpleaños
-  @Cron('30 11 * * *') // Todos los días a las 11:30 AM
+  @Cron('0 8 * * *') // Todos los días a las 8:00 AM
   async checkBirthdays() {
     const cronName = 'checkBirthdays';
     this.logger.log('🎂 Verificando cumpleaños de empleados...');
@@ -220,7 +220,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Recordatorios de feriados
-  @Cron('30 11 * * *') // Todos los días a las 11:30 AM
+  @Cron('0 7 * * *') // Todos los días a las 7:00 AM
   async checkHolidays() {
     const cronName = 'checkHolidays';
     this.logger.log('🎊 Verificando feriados...');
@@ -492,28 +492,24 @@ export class NotificationsService {
     );
 
     // Enviar email
-    const mailOptions = {
-      from: this.fromEmail,
-      to: company.email,
-      subject: `🎉 ¡Feliz cumpleaños ${employee.first_name}!`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #e91e63;">🎉 ¡Feliz Cumpleaños!</h2>
-          <p>Hola <strong>${company.legal_name}</strong>,</p>
-          <p>¡Hoy es el cumpleaños de <strong>${employee.first_name} ${employee.last_name}</strong>! 🎂</p>
-          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3>🎁 Detalles del empleado:</h3>
-            <ul>
-              <li><strong>Nombre:</strong> ${employee.first_name} ${employee.last_name}</li>
-              <li><strong>Email:</strong> ${employee.email}</li>
-              <li><strong>Fecha de nacimiento:</strong> ${employee.birthdate.toLocaleDateString()}</li>
-            </ul>
-          </div>
-          <p>¡No olvides felicitarlo y hacer que se sienta especial en su día! 🎈</p>
-          <p>Saludos,<br>Equipo HR System</p>
+    const subject = `🎉 ¡Feliz cumpleaños ${employee.first_name}!`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #e91e63;">🎉 ¡Feliz Cumpleaños!</h2>
+        <p>Hola <strong>${company.legal_name}</strong>,</p>
+        <p>¡Hoy es el cumpleaños de <strong>${employee.first_name} ${employee.last_name}</strong>! 🎂</p>
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3>🎁 Detalles del empleado:</h3>
+          <ul>
+            <li><strong>Nombre:</strong> ${employee.first_name} ${employee.last_name}</li>
+            <li><strong>Email:</strong> ${employee.email}</li>
+            <li><strong>Fecha de nacimiento:</strong> ${employee.birthdate?.toLocaleDateString?.() || 'N/A'}</li>
+          </ul>
         </div>
-      `
-    };
+        <p>¡No olvides felicitarlo y hacer que se sienta especial en su día! 🎈</p>
+        <p>Saludos,<br>Equipo HR System</p>
+      </div>
+    `;
 
     try {
       await this.sendEmail(company.email, subject, html);
@@ -548,28 +544,24 @@ export class NotificationsService {
         );
 
         // Enviar email
-        const mailOptions = {
-          from: this.fromEmail,
-          to: company.email,
-          subject: `🎊 Recordatorio de feriado: ${isHoliday.name}`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #f39c12;">🎊 Recordatorio de Feriado</h2>
-              <p>Hola <strong>${company.legal_name}</strong>,</p>
-              <p>Te recordamos que <strong>mañana es feriado</strong>: <strong>${isHoliday.name}</strong></p>
-              <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
-                <h3>📅 Información del feriado:</h3>
-                <ul>
-                  <li><strong>Fecha:</strong> ${date.toLocaleDateString()}</li>
-                  <li><strong>Feriado:</strong> ${isHoliday.name}</li>
-                  <li><strong>País:</strong> ${countryCode}</li>
-                </ul>
-              </div>
-              <p>¡Que tengas un excelente día libre! 🎉</p>
-              <p>Saludos,<br>Equipo HR System</p>
+        const subject = `🎊 Recordatorio de feriado: ${isHoliday.name}`;
+        const html = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #f39c12;">🎊 Recordatorio de Feriado</h2>
+            <p>Hola <strong>${company.legal_name}</strong>,</p>
+            <p>Te recordamos que <strong>mañana es feriado</strong>: <strong>${isHoliday.name}</strong></p>
+            <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+              <h3>📅 Información del feriado:</h3>
+              <ul>
+                <li><strong>Fecha:</strong> ${date.toLocaleDateString()}</li>
+                <li><strong>Feriado:</strong> ${isHoliday.name}</li>
+                <li><strong>País:</strong> ${countryCode}</li>
+              </ul>
             </div>
-          `
-        };
+            <p>¡Que tengas un excelente día libre! 🎉</p>
+            <p>Saludos,<br>Equipo HR System</p>
+          </div>
+        `;
 
         try {
           await this.sendEmail(company.email, subject, html);
@@ -645,23 +637,12 @@ export class NotificationsService {
 
   // Crear notificación en BD
   async createNotification(
-    userIdOrCompanyId: string,
+    userId: string,
     title: string,
     message: string,
     type: NotificationType
   ) {
-    // Buscar usuario por ID o por company.id
-    let user = await this.userRepository.findOne({
-      where: { id: userIdOrCompanyId }
-    });
-
-    // Si no se encuentra por ID, buscar por company.id
-    if (!user) {
-      user = await this.userRepository.findOne({
-        where: { company: { id: userIdOrCompanyId } }
-      });
-    }
-
+    const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('Usuario no encontrado');
     }
@@ -680,7 +661,7 @@ export class NotificationsService {
 
     // Enviar notificación en tiempo real
     await this.notificationsGateway.sendNotificationToUser(
-      user.id,
+      userId,
       savedNotification
     );
 

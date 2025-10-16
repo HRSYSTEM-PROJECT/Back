@@ -38,6 +38,9 @@ export class ChatController {
     @Request() req,
     @Param('otherUserId') otherUserId: string
   ) {
+    if (!req.user || !req.user.id) {
+      throw new Error('Usuario no autenticado');
+    }
     return await this.chatService.createDirectChat(req.user.id, otherUserId);
   }
 
@@ -53,6 +56,11 @@ export class ChatController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20
   ) {
+    // Validar que req.user existe antes de usarlo
+    if (!req.user || !req.user.id) {
+      throw new Error('Usuario no autenticado o datos de usuario incompletos');
+    }
+
     return this.chatService.getUserChats(req.user.id, page, limit);
   }
 
@@ -62,6 +70,9 @@ export class ChatController {
   @ApiResponse({ status: 200, description: 'Chat obtenido exitosamente' })
   @ApiResponse({ status: 403, description: 'Sin acceso al chat' })
   async getChat(@Request() req, @Param('chatId') chatId: string) {
+    if (!req.user || !req.user.id) {
+      throw new Error('Usuario no autenticado');
+    }
     return await this.chatService.getChat(chatId, req.user.id);
   }
 
@@ -75,6 +86,9 @@ export class ChatController {
     @Param('chatId') chatId: string,
     @Body() sendMessageDto: SendMessageDto
   ) {
+    if (!req.user || !req.user.id) {
+      throw new Error('Usuario no autenticado');
+    }
     return this.chatService.sendMessage(req.user.id, chatId, sendMessageDto);
   }
 
@@ -89,6 +103,9 @@ export class ChatController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 50
   ) {
+    if (!req.user || !req.user.id) {
+      throw new Error('Usuario no autenticado');
+    }
     return this.chatService.getChatMessages(chatId, req.user.id, page, limit);
   }
 
@@ -102,6 +119,9 @@ export class ChatController {
     @Param('messageId') messageId: string,
     @Body('content') content: string
   ) {
+    if (!req.user || !req.user.id) {
+      throw new Error('Usuario no autenticado');
+    }
     return this.chatService.editMessage(req.user.id, messageId, content);
   }
 
@@ -112,6 +132,9 @@ export class ChatController {
   @ApiResponse({ status: 404, description: 'Mensaje no encontrado' })
   @HttpCode(HttpStatus.OK)
   async deleteMessage(@Request() req, @Param('messageId') messageId: string) {
+    if (!req.user || !req.user.id) {
+      throw new Error('Usuario no autenticado');
+    }
     await this.chatService.deleteMessage(req.user.id, messageId);
     return { message: 'Mensaje eliminado exitosamente' };
   }
