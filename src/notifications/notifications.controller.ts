@@ -331,4 +331,42 @@ export class NotificationsController {
       (body.type as any) || 'custom_notification'
     );
   }
+
+  // -------------------------------
+  // 🆕 NUEVOS ENDPOINTS AGREGADOS
+  // -------------------------------
+
+  @UseGuards(ClerkAuthGuard)
+  @Get('cron-status')
+  @ApiOperation({
+    summary: 'Obtener el estado actual de los crons de notificaciones'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Estado actual de los crons retornado correctamente'
+  })
+  async getCronStatus() {
+    return await this.notificationsService.getCronStatus();
+  }
+
+  @UseGuards(ClerkAuthGuard)
+  @Get('cron-notifications')
+  @ApiOperation({
+    summary:
+      'Obtener las notificaciones automáticas recientes generadas por los crons'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Límite de notificaciones a retornar (default: 20)'
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Lista de notificaciones automáticas recientes retornada correctamente'
+  })
+  async getCronNotifications(@Query('limit') limit: number = 20) {
+    return this.notificationsService.getRecentCronNotifications(limit);
+  }
 }
