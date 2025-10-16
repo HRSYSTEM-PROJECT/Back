@@ -7,20 +7,12 @@ import {
   IsUUID,
   MaxLength,
   MinLength,
-  IsUrl
+  IsUrl,
+  Length,
+  Matches
 } from 'class-validator';
 
 export class CreateUserDto {
-  @ApiProperty({
-    example: '123e4567-e89b-12d3-a456-426614174000',
-    description: 'ID del rol del usuario (obligatorio)',
-    format: 'uuid'
-  })
-  @IsString()
-  @IsNotEmpty()
-  @IsUUID()
-  role_id: string;
-
   @ApiPropertyOptional({
     example: '123e4567-e89b-12d3-a456-426614174000',
     description: 'ID del empleado asociado (opcional)',
@@ -31,6 +23,7 @@ export class CreateUserDto {
   @IsUUID()
   employee_id: string | null;
 
+  /*
   @ApiPropertyOptional({
     example: '123e4567-e89b-12d3-a456-426614174000',
     description: 'ID de la empresa asociada (opcional)',
@@ -40,6 +33,7 @@ export class CreateUserDto {
   @IsString()
   @IsUUID()
   company_id: string | null;
+  */
 
   @ApiProperty({
     example: 'usuario@empresa.com',
@@ -52,15 +46,16 @@ export class CreateUserDto {
   email: string;
 
   @ApiProperty({
-    example: 'Contrasena123!',
-    description: 'Contraseña del usuario (mínimo 8 caracteres)',
-    minLength: 8,
-    maxLength: 50
+    description:
+      'La contraseña debe tener al menos 12 caracteres y máximo 25, debe poseer al menos una minúscula, una mayúscula y un número.',
+    example: 'Contrasena123'
   })
   @IsString()
-  @IsNotEmpty()
-  @MinLength(8)
-  @MaxLength(50)
+  @Length(12, 25)
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])/, {
+    message:
+      'La contraseña debe tener al menos 12 caracteres y máximo 25, debe poseer al menos una minúscula, una mayúscula y un número.'
+  })
   password: string;
 
   @ApiProperty({

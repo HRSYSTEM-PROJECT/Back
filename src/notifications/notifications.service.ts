@@ -58,7 +58,9 @@ export class NotificationsService {
 
   private initializeSendGrid() {
     if (!SENDGRID_API_KEY) {
-      this.logger.warn('SENDGRID_API_KEY not found. Email functionality will be disabled.');
+      this.logger.warn(
+        'SENDGRID_API_KEY not found. Email functionality will be disabled.'
+      );
       return;
     }
     sgMail.setApiKey(SENDGRID_API_KEY);
@@ -79,7 +81,7 @@ export class NotificationsService {
         text: text || html.replace(/<[^>]*>/g, ''), // Convert HTML to plain text
         html
       };
-      
+
       await sgMail.send(msg);
       this.logger.log(`📧 Email sent successfully to ${to}`);
     } catch (error) {
@@ -125,7 +127,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Verificar suscripciones que expiran en 7 días
-  @Cron('0 9 * * *') // Todos los días a las 9:00 AM
+  @Cron('30 11 * * *') // Todos los días a las 11:30 AM
   async checkExpiringSubscriptions() {
     const cronName = 'checkExpiringSubscriptions';
     this.logger.log('🔍 Verificando suscripciones que expiran en 7 días...');
@@ -157,7 +159,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Verificar suscripciones expiradas
-  @Cron('0 10 * * *') // Todos los días a las 10:00 AM
+  @Cron('30 11 * * *') // Todos los días a las 11:30 AM
   async checkExpiredSubscriptions() {
     const cronName = 'checkExpiredSubscriptions';
     this.logger.log('🔍 Verificando suscripciones expiradas...');
@@ -187,7 +189,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Recordatorio de cumpleaños
-  @Cron('0 8 * * *') // Todos los días a las 8:00 AM
+  @Cron('30 11 * * *') // Todos los días a las 11:30 AM
   async checkBirthdays() {
     const cronName = 'checkBirthdays';
     this.logger.log('🎂 Verificando cumpleaños de empleados...');
@@ -218,7 +220,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Recordatorios de feriados
-  @Cron('0 7 * * *') // Todos los días a las 7:00 AM
+  @Cron('30 11 * * *') // Todos los días a las 11:30 AM
   async checkHolidays() {
     const cronName = 'checkHolidays';
     this.logger.log('🎊 Verificando feriados...');
@@ -643,12 +645,23 @@ export class NotificationsService {
 
   // Crear notificación en BD
   async createNotification(
-    userId: string,
+    userIdOrCompanyId: string,
     title: string,
     message: string,
     type: NotificationType
   ) {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    // Buscar usuario por ID o por company.id
+    let user = await this.userRepository.findOne({
+      where: { id: userIdOrCompanyId }
+    });
+
+    // Si no se encuentra por ID, buscar por company.id
+    if (!user) {
+      user = await this.userRepository.findOne({
+        where: { company: { id: userIdOrCompanyId } }
+      });
+    }
+
     if (!user) {
       throw new NotFoundException('Usuario no encontrado');
     }
@@ -667,7 +680,7 @@ export class NotificationsService {
 
     // Enviar notificación en tiempo real
     await this.notificationsGateway.sendNotificationToUser(
-      userId,
+      user.id,
       savedNotification
     );
 

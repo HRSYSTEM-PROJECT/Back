@@ -56,7 +56,7 @@
 //     status: 500,
 //     description: 'Error interno del servidor'
 //   })
-  
+
 //   // async create(@Body() createEmployeeDto: CreateEmployeeDto, @Req() req: Request) {
 //   //   const authUser = req.user as User;
 //   //   return this.empleadoService.create(createEmployeeDto, authUser);
@@ -87,7 +87,6 @@
 //   async findAll(@AuthUser() user: any) {
 //     return this.empleadoService.findAll(user);
 //   }
-   
 
 //   @Get(':id')
 //   @ApiOperation({
@@ -224,11 +223,10 @@
 //   return this.empleadoService.getAusenciasByEmpleado(employeeId, user, month, year);
 // }
 
- 
 // }
 
 //uso del guard authuser con clerk
- import {
+import {
   Controller,
   Get,
   Post,
@@ -237,7 +235,8 @@
   Param,
   Delete,
   Query,
-  UseGuards
+  UseGuards,
+  Req
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -246,6 +245,7 @@ import {
   ApiParam,
   ApiBody
 } from '@nestjs/swagger';
+import type { AuthRequest } from 'src/interfaces/authrequest.interface';
 import { EmpleadoService } from './empleado.service';
 import { CreateEmployeeDto } from './dto/create-empleado.dto';
 import { UpdateEmployeeDto } from './dto/update-empleado.dto';
@@ -255,8 +255,8 @@ import { ClerkAuthGuard } from 'src/auth/guards/clerk.guard';
 import { User } from 'src/user/entities/user.entity';
 
 @ApiTags('Empleado')
-@Controller('empleado')
 @UseGuards(ClerkAuthGuard) // 👈 aplica el guard a TODO el controller
+@Controller('empleado')
 export class EmpleadoController {
   constructor(private readonly empleadoService: EmpleadoService) {}
 
@@ -271,8 +271,8 @@ export class EmpleadoController {
   @ApiResponse({ status: 201, description: 'Empleado creado exitosamente' })
   // async create(@AuthUser() user: any, @Body() dto: CreateEmployeeDto) {
   //   return this.empleadoService.create(dto, user);
-  async create(@AuthUser() user: any, @Body() dto: CreateEmployeeDto) {
-  return this.empleadoService.create(dto, user);
+  async create(@Req() req: AuthRequest, @Body() dto: CreateEmployeeDto) {
+    return this.empleadoService.create(dto, req.user);
   }
 
   // ✅ Obtener todos los empleados
@@ -282,8 +282,8 @@ export class EmpleadoController {
     description: 'Retorna una lista de todos los empleados registrados'
   })
   @ApiResponse({ status: 200, description: 'Lista de empleados obtenida' })
-  async findAll(@AuthUser() user: any) {
-    return this.empleadoService.findAll(user);
+  async findAll(@Req() req: AuthRequest) {
+    return this.empleadoService.findAll(req.user);
   }
 
   // ✅ Buscar por ID
@@ -297,8 +297,8 @@ export class EmpleadoController {
     description: 'UUID del empleado',
     example: '123e4567-e89b-12d3-a456-426614174000'
   })
-  async findOne(@Param('id') id: string, @AuthUser() user: any) {
-    return this.empleadoService.findOne(id, user);
+  async findOne(@Param('id') id: string, @Req() req: AuthRequest) {
+    return this.empleadoService.findOne(id, req.user);
   }
 
   // ✅ Buscar empleados (filtro)
@@ -308,8 +308,11 @@ export class EmpleadoController {
     description:
       'Busca empleados según criterios (nombre, apellido, email, etc.)'
   })
-  async searchEmpleados(@AuthUser() user: any, @Query() searchDto: SearchEmpleadoDto) {
-    return this.empleadoService.search(user, searchDto);
+  async searchEmpleados(
+    @Req() req: AuthRequest,
+    @Query() searchDto: SearchEmpleadoDto
+  ) {
+    return this.empleadoService.search(req.user, searchDto);
   }
 
   // ✅ Actualizar empleado
@@ -322,9 +325,9 @@ export class EmpleadoController {
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateEmployeeDto,
-    @AuthUser() user: any
+    @Req() req: AuthRequest
   ) {
-    return this.empleadoService.update(id, dto, user);
+    return this.empleadoService.update(id, dto, req.user);
   }
 
   // ✅ Eliminar empleado
@@ -333,8 +336,8 @@ export class EmpleadoController {
     summary: 'Eliminar empleado',
     description: 'Elimina un empleado del sistema (soft delete)'
   })
-  async remove(@Param('id') id: string, @AuthUser() user: any) {
-    return this.empleadoService.remove(id, user);
+  async remove(@Param('id') id: string, @Req() req: AuthRequest) {
+    return this.empleadoService.remove(id, req.user);
   }
 
   // ✅ Ausencias del empleado
@@ -346,10 +349,15 @@ export class EmpleadoController {
   })
   async getAusenciasByEmpleado(
     @Param('id') employeeId: string,
-    @AuthUser() user: User,
+    @Req() req: AuthRequest,
     @Query('month') month?: number,
     @Query('year') year?: number
   ) {
-    return this.empleadoService.getAusenciasByEmpleado(employeeId, user, month, year);
+    return this.empleadoService.getAusenciasByEmpleado(
+      employeeId,
+      req.user,
+      month,
+      year
+    );
   }
 }

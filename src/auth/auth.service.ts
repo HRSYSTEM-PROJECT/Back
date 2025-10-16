@@ -380,6 +380,7 @@ import { Plan } from 'src/plan/entities/plan.entity';
 import { Suscripcion } from 'src/suscripcion/entities/suscripcion.entity';
 import { Rol } from 'src/rol/entities/rol.entity';
 import { Role } from 'src/rol/enums/role.enum';
+import { Plans } from 'src/plan/enums/plan.enum';
 
 import { JwtService } from '@nestjs/jwt';
 
@@ -433,16 +434,18 @@ export class AuthService {
         const savedCompany = await manager.save(Company, company);
 
         if (!savedCompany) {
-          throw new NotFoundException('Error, Company not found after register.');
+          throw new NotFoundException(
+            'Error, Company not found after register.'
+          );
         }
 
         //Encontrar el Plan en la DB
         const plan = await manager.findOne(Plan, {
-          where: { id: newRegister.plan_id }
+          where: { name: Plans.FREE }
         });
 
         if (!plan) {
-          throw new NotFoundException('Error, Plan id not found.');
+          throw new NotFoundException('Error, Plan Free not found.');
         }
 
         //Fechas
@@ -478,14 +481,14 @@ export class AuthService {
         }
 
         // Registro en Clerk
-        const clearkUser = await this.clerkService.createUser(
+        const clerkUser = await this.clerkService.createUser(
           newRegister.email,
           newRegister.password,
           newRegister.name
         );
 
         const newUser = new User();
-        newUser.clerkId = clearkUser.id;
+        newUser.clerkId = clerkUser.id;
         newUser.email = newRegister.email;
         newUser.first_name = newRegister.name;
         newUser.role = rol;
@@ -498,7 +501,6 @@ export class AuthService {
         return {
           message: 'Register successfully.'
         };
-
       } catch (error) {
         // Si cualquier paso falla, TODO se revierte automáticamente
         console.error('Error en registro:', error);
@@ -507,10 +509,10 @@ export class AuthService {
     });
   }
 
-  //-------------Perfil de usuario y JWT-------------//
-  async getUserWithJwt(email: string) {
+  //-------------Perfil de usuario-------------//
+  async getAuthUser(clerkId: string) {
     const userLogin = await this.usersRepository.findOne({
-      where: { email },
+      where: { clerkId: clerkId },
       relations: { company: true, role: true }
     });
 
@@ -518,16 +520,9 @@ export class AuthService {
       throw new NotFoundException('User not found in DB.');
     }
 
-    const payload = {
-      id: userLogin.id,
-      email: userLogin.email,
-      name: userLogin.first_name,
-      rol: userLogin.role.name,
-      companyId: userLogin.company.id
+    return {
+      message: 'User loguin.',
+      user: userLogin
     };
-
-    const appToken = this.jwtService.sign(payload);
-
-    return { user: userLogin, appToken };
   }
 }

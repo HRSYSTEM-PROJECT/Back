@@ -38,7 +38,7 @@ export class CreateEmployeeDto {
   @ApiProperty({ example: 12345679, description: 'DNI único del empleado' })
   @IsInt()
   @IsOptional()
-  dni?: number;
+  dni: number;
 
   @ApiProperty({
     example: '20-12345678-9',
@@ -51,7 +51,7 @@ export class CreateEmployeeDto {
   @Matches(/^\d{2}-\d{8}-\d{1}$/, {
     message: 'El CUIL debe tener el formato XX-XXXXXXXX-X'
   })
-  cuil?: string;
+  cuil: string;
 
   @ApiProperty({
     example: '+54 9 11 1234-5678',
@@ -66,7 +66,7 @@ export class CreateEmployeeDto {
     message:
       'El teléfono debe contener solo números, espacios, guiones y paréntesis'
   })
-  phone_number?: string;
+  phone_number: string;
 
   @ApiProperty({
     example: 'Av. Siempre Viva 123, CABA, Argentina',
@@ -100,7 +100,7 @@ export class CreateEmployeeDto {
   @IsString()
   @IsUrl()
   @MaxLength(255)
-  imgUrl?: string;
+  imgUrl: string;
 
   @ApiProperty({
     example: 75000.5,
@@ -112,7 +112,7 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsNumber()
   @MaxTwoDecimals({ message: 'El sueldo debe tener como máximo dos decimales' })
-  salary?: number;
+  salary: number;
 
   @ApiProperty({
     example: 'juan.perez@email.com',
