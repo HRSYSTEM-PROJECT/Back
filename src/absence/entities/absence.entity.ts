@@ -22,7 +22,7 @@ export class Absence {
   end_date: Date;
 
   @Column({ type: 'text', nullable: true })
-  description: string;
+  description?: string;
 
   @ManyToOne(() => Employee, { eager: true })
   @JoinColumn({ name: 'employee_id' })
