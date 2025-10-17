@@ -47,6 +47,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.1",
+    "stripe": "^19.1.0",
     "swagger-ui-express": "^5.0.1",
     "typeorm": "^0.3.27",
     "uuid": "^13.0.0"
@@ -61,6 +62,7 @@
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.18.8",
+    "@types/stripe": "^8.0.416",
     "@types/supertest": "^6.0.2",
     "@types/uuid": "^10.0.0",
     "eslint": "^9.18.0",
