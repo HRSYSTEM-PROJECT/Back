@@ -29,6 +29,25 @@ import { ClerkAuthGuard } from '../auth/guards/clerk.guard';
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 
+  // 🔍 Buscar usuarios para chat
+  @Get('users/search')
+  @ApiOperation({ summary: 'Buscar usuarios para iniciar chat' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de usuarios obtenida exitosamente'
+  })
+  async searchUsers(
+    @Request() req,
+    @Query('q') query: string = '',
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20
+  ) {
+    if (!req.user || !req.user.id) {
+      throw new Error('Usuario no autenticado');
+    }
+    return this.chatService.searchUsers(req.user.id, query, page, limit);
+  }
+
   // 📝 Crear chat directo con otro usuario
   @Post('direct/:otherUserId')
   @ApiOperation({ summary: 'Crear chat directo con otro usuario' })
