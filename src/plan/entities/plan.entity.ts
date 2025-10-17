@@ -20,6 +20,9 @@ export class Plan {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   price: number;
 
+  @Column({ nullable: true })
+  stripe_price_id: string;
+
   @Column({ type: 'int' })
   duration_days: number;
 

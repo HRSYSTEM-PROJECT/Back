@@ -20,6 +20,8 @@ import { AbsenceModule } from './absence/absence.module';
 import { ContactModule } from './contact/contact.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ChatModule } from './chat/chat.module';
+import { StripeModule } from './stripe/stripe.module';
+import { WeebhookModule } from './weebhook/weebhook.module';
 import { JWT_SECRET } from './config/envs';
 
 //--------------SEEDER----------------//
@@ -61,7 +63,9 @@ import { Position } from './position/entities/position.entity';
     ContactModule,
     NotificationsModule,
     ChatModule,
-    TypeOrmModule.forFeature([Plan, Rol, Departamento, Position])
+    TypeOrmModule.forFeature([Plan, Rol, Departamento, Position]),
+    StripeModule,
+    WeebhookModule
   ],
   controllers: [AppController],
   providers: [

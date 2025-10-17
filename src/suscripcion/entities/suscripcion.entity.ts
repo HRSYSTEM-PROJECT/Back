@@ -3,7 +3,8 @@ import {
   PrimaryGeneratedColumn,
   Column,
   ManyToOne,
-  JoinColumn
+  JoinColumn,
+  OneToOne
 } from 'typeorm';
 import { Company } from '../../empresa/entities/empresa.entity';
 import { Plan } from '../../plan/entities/plan.entity';
@@ -19,11 +20,20 @@ export class Suscripcion {
   @Column({ type: 'timestamp' })
   end_date: Date;
 
-  /*  @Column({ unique: true })
-  token: string;*/
+  // NUEVOS CAMPOS:
+  @Column({ nullable: true })
+  stripe_subscription_id: string;
 
-  @ManyToOne(() => Company, (companie) => companie.suscripciones)
-  @JoinColumn({ name: 'company_id' })
+  @Column({ nullable: true })
+  stripe_price_id: string;
+
+  @Column({ nullable: true })
+  stripe_customer_id: string;
+
+  @Column({ nullable: true })
+  status: string; // active | canceled | incomplete | trialing etc.
+
+  @OneToOne(() => Company, (companie) => companie.suscripciones)
   company: Company;
 
   @ManyToOne(() => Plan, (plan) => plan.suscripciones)
