@@ -6,9 +6,14 @@ import { SuscripcionService } from 'src/suscripcion/suscripcion.service';
 import { Company } from 'src/empresa/entities/empresa.entity';
 import { Plan } from 'src/plan/entities/plan.entity';
 import { UserModule } from 'src/user/user.module';
+import { SuscripcionModule } from 'src/suscripcion/suscripcion.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Company, Plan]), UserModule],
+  imports: [
+    TypeOrmModule.forFeature([Company, Plan]),
+    UserModule,
+    SuscripcionModule
+  ],
   controllers: [WebhookController],
   providers: [WebhookService, SuscripcionService]
 })
