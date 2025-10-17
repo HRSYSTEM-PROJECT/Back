@@ -16,6 +16,6 @@ import { UserModule } from '../user/user.module';
   ],
   controllers: [SuscripcionController],
   providers: [SuscripcionService],
-  exports: [SuscripcionService]
+  exports: [SuscripcionService, NotificationsModule]
 })
 export class SuscripcionModule {}
