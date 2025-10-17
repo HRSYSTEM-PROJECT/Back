@@ -253,12 +253,32 @@ export class NotificationsService {
   ) {
     this.logger.log(`👤 Notificando empleado agregado: ${employeeName}`);
 
-    await this.createNotification(
-      companyId,
-      '👤 Nuevo empleado agregado',
-      `Se agregó ${employeeName}${position ? ` como ${position}` : ''} al equipo`,
-      'employee_added' as NotificationType
-    );
+    try {
+      // Obtener usuarios de la empresa
+      const users = await this.userRepository.find({
+        where: { company: { id: companyId } },
+        relations: ['company']
+      });
+
+      if (users.length === 0) {
+        this.logger.warn(
+          `⚠️ No se encontraron usuarios para la empresa ${companyId}`
+        );
+        return;
+      }
+
+      // Crear notificación para cada usuario de la empresa
+      for (const user of users) {
+        await this.createNotification(
+          user.id,
+          '👤 Nuevo empleado agregado',
+          `Se agregó ${employeeName}${position ? ` como ${position}` : ''} al equipo`,
+          'employee_added' as NotificationType
+        );
+      }
+    } catch (error) {
+      this.logger.error(`Error enviando notificación: ${error.message}`);
+    }
   }
 
   // 🚫 Notificar ausencia agregada
@@ -271,19 +291,41 @@ export class NotificationsService {
   ) {
     this.logger.log(`🚫 Notificando ausencia agregada: ${employeeName}`);
 
-    const startDateStr = startDate.toLocaleDateString();
-    const endDateStr = endDate.toLocaleDateString();
-    const dateRange =
-      startDateStr === endDateStr
-        ? startDateStr
-        : `${startDateStr} - ${endDateStr}`;
+    try {
+      // Obtener usuarios de la empresa
+      const users = await this.userRepository.find({
+        where: { company: { id: companyId } },
+        relations: ['company']
+      });
 
-    await this.createNotification(
-      companyId,
-      '🚫 Nueva ausencia registrada',
-      `Se registró una ausencia para ${employeeName} del ${dateRange}${description ? `: ${description}` : ''}`,
-      'absence_added' as NotificationType
-    );
+      if (users.length === 0) {
+        this.logger.warn(
+          `⚠️ No se encontraron usuarios para la empresa ${companyId}`
+        );
+        return;
+      }
+
+      const startDateStr = startDate.toLocaleDateString();
+      const endDateStr = endDate.toLocaleDateString();
+      const dateRange =
+        startDateStr === endDateStr
+          ? startDateStr
+          : `${startDateStr} - ${endDateStr}`;
+
+      // Crear notificación para cada usuario de la empresa
+      for (const user of users) {
+        await this.createNotification(
+          user.id,
+          '🚫 Nueva ausencia registrada',
+          `Se registró una ausencia para ${employeeName} del ${dateRange}${description ? `: ${description}` : ''}`,
+          'absence_added' as NotificationType
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error enviando notificación de ausencia: ${error.message}`
+      );
+    }
   }
 
   // 💰 Notificar nómina procesada
@@ -644,7 +686,10 @@ export class NotificationsService {
   ) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
-      throw new NotFoundException('Usuario no encontrado');
+      this.logger.warn(
+        `⚠️ Usuario ${userId} no encontrado para notificación: ${title}`
+      );
+      return null; // Retornar null en lugar de lanzar error
     }
 
     const notification = this.notificationRepository.create({
