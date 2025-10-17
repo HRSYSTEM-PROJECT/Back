@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
+import * as express from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -25,6 +26,9 @@ async function bootstrap() {
       transform: true // transforma tipos automáticamente (ej: string -> number)
     })
   );
+
+  // Ensure raw for webhook path (before json parser)
+  app.use('/webhook/stripe', express.raw({ type: 'application/json' }));
 
   const configService = app.get(ConfigService);
 

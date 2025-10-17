@@ -5,7 +5,9 @@ import {
   OneToMany,
   CreateDateColumn,
   DeleteDateColumn,
-  UpdateDateColumn
+  UpdateDateColumn,
+  OneToOne,
+  JoinColumn
 } from 'typeorm';
 import { Employee } from 'src/empleado/entities/empleado.entity';
 import { User } from 'src/user/entities/user.entity';
@@ -15,6 +17,12 @@ import { Suscripcion } from 'src/suscripcion/entities/suscripcion.entity';
 export class Company {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column({ nullable: true })
+  stripe_customer_id: string;
+
+  @Column({ nullable: true })
+  country: string;
 
   @Column()
   trade_name: string;
@@ -30,9 +38,6 @@ export class Company {
 
   @Column({ nullable: true })
   email: string;
-
-  @Column()
-  country: string;
 
   @Column({ type: 'text', nullable: true })
   logo: string | null;
@@ -64,6 +69,7 @@ export class Company {
   @OneToMany(() => User, (user) => user.company)
   users: User[];
 
-  @OneToMany(() => Suscripcion, (suscripcion) => suscripcion.company)
-  suscripciones: Suscripcion[];
+  @OneToOne(() => Suscripcion, (suscripcion) => suscripcion.company)
+  @JoinColumn({ name: 'current_subscription_id' })
+  suscripciones: Suscripcion;
 }

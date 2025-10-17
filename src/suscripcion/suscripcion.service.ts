@@ -293,4 +293,92 @@ export class SuscripcionService {
       console.error('Error enviando notificación de cancelación:', error);
     }
   }
+
+  /**
+   * Finaliza la suscripción activa actual de la empresa (marca el end_date como "now")
+   */
+  async endActiveSubscriptionForCompany(companyId: string, endDate: Date) {
+    const currentDate = new Date();
+
+    const active = await this.suscripcionRepository.findOne({
+      where: {
+        company: { id: companyId },
+        start_date: LessThanOrEqual(currentDate),
+        end_date: MoreThanOrEqual(currentDate)
+      },
+      relations: ['company', 'plan']
+    });
+
+    if (active) {
+      active.end_date = endDate;
+      await this.suscripcionRepository.save(active);
+    }
+
+    return active;
+  }
+
+  /**
+   * Crea una nueva suscripción a partir de los datos recibidos desde Stripe
+   */
+  async createFromStripe({
+    companyId,
+    planId,
+    startDate,
+    endDate,
+    stripe_subscription_id,
+    stripe_price_id,
+    stripe_customer_id,
+    status
+  }: {
+    companyId: string;
+    planId?: string;
+    startDate: Date;
+    endDate: Date;
+    stripe_subscription_id: string;
+    stripe_price_id: string;
+    stripe_customer_id: string;
+    status: string;
+  }) {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId }
+    });
+
+    if (!company) throw new NotFoundException('Company not found');
+
+    const plan = planId
+      ? await this.planRepository.findOne({ where: { id: planId } })
+      : null;
+
+    if (!plan) throw new NotFoundException('Company not found');
+
+    const newSub = new Suscripcion();
+    newSub.company = company;
+    newSub.plan = plan;
+    newSub.start_date = startDate;
+    newSub.end_date = endDate;
+    newSub.stripe_subscription_id = stripe_subscription_id;
+    newSub.stripe_price_id = stripe_price_id;
+    newSub.status = status;
+
+    return await this.suscripcionRepository.save(newSub);
+  }
+
+  /**
+   * Actualiza el estado de la suscripción local según el evento de Stripe
+   */
+  async handleStripeSubscriptionUpdate(subscription: any) {
+    const stripeSubId = subscription.id;
+
+    const localSub = await this.suscripcionRepository.findOne({
+      where: { stripe_subscription_id: stripeSubId },
+      relations: ['company', 'plan']
+    });
+
+    if (!localSub) return;
+
+    localSub.status = subscription.status;
+    localSub.end_date = new Date(subscription.current_period_end * 1000);
+
+    await this.suscripcionRepository.save(localSub);
+  }
 }
