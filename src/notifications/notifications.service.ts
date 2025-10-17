@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
@@ -10,6 +15,10 @@ import { Suscripcion } from '../suscripcion/entities/suscripcion.entity';
 import { Employee } from '../empleado/entities/empleado.entity';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { NotificationConfig } from './entities/notification-config.entity';
+import {
+  ScheduledNotification,
+  RecipientType
+} from './entities/scheduled-notification.entity';
 import { NotificationsGateway } from './notifications.gateway';
 import { UpdateNotificationConfigDto } from './dto/update-notification-config.dto';
 import { SENDGRID_API_KEY, SENDGRID_FROM } from '../config/envs';
@@ -50,6 +59,8 @@ export class NotificationsService {
     private notificationRepository: Repository<Notification>,
     @InjectRepository(NotificationConfig)
     private configRepository: Repository<NotificationConfig>,
+    @InjectRepository(ScheduledNotification)
+    private scheduledNotificationRepository: Repository<ScheduledNotification>,
     private notificationsGateway: NotificationsGateway,
     private configService: ConfigService
   ) {
@@ -158,6 +169,47 @@ export class NotificationsService {
     }
   }
 
+  // 🔔 CRON: Ejecutar notificaciones programadas
+  @Cron('* * * * *') // Cada minuto
+  async executeScheduledNotifications() {
+    const cronName = 'executeScheduledNotifications';
+    this.logger.log(
+      `🕐 Ejecutando verificación de notificaciones programadas...`
+    );
+
+    try {
+      const now = new Date();
+      const oneMinuteFromNow = new Date(now.getTime() + 60000);
+
+      // Buscar notificaciones programadas que deben ejecutarse
+      const scheduledNotifications = await this.scheduledNotificationRepository
+        .createQueryBuilder('scheduled')
+        .where('scheduled.is_executed = :executed', { executed: false })
+        .andWhere('scheduled.is_deleted = :deleted', { deleted: false })
+        .andWhere('scheduled.scheduled_date >= :now', { now })
+        .andWhere('scheduled.scheduled_date <= :oneMinuteFromNow', {
+          oneMinuteFromNow
+        })
+        .getMany();
+
+      this.logger.log(
+        `📋 Encontradas ${scheduledNotifications.length} notificaciones programadas para ejecutar`
+      );
+
+      for (const scheduledNotification of scheduledNotifications) {
+        await this.executeScheduledNotification(scheduledNotification);
+      }
+
+      this.updateCronStatus(cronName, 'success');
+    } catch (error) {
+      this.logger.error(
+        `❌ Error ejecutando notificaciones programadas:`,
+        error
+      );
+      this.updateCronStatus(cronName, 'error', String(error));
+    }
+  }
+
   // 🔔 CRON: Verificar suscripciones expiradas
   @Cron('0 10 * * *') // Todos los días a las 10:00 AM
   async checkExpiredSubscriptions() {
@@ -253,12 +305,32 @@ export class NotificationsService {
   ) {
     this.logger.log(`👤 Notificando empleado agregado: ${employeeName}`);
 
-    await this.createNotification(
-      companyId,
-      '👤 Nuevo empleado agregado',
-      `Se agregó ${employeeName}${position ? ` como ${position}` : ''} al equipo`,
-      'employee_added' as NotificationType
-    );
+    try {
+      // Obtener usuarios de la empresa
+      const users = await this.userRepository.find({
+        where: { company: { id: companyId } },
+        relations: ['company']
+      });
+
+      if (users.length === 0) {
+        this.logger.warn(
+          `⚠️ No se encontraron usuarios para la empresa ${companyId}`
+        );
+        return;
+      }
+
+      // Crear notificación para cada usuario de la empresa
+      for (const user of users) {
+        await this.createNotification(
+          user.id,
+          '👤 Nuevo empleado agregado',
+          `Se agregó ${employeeName}${position ? ` como ${position}` : ''} al equipo`,
+          'employee_added' as NotificationType
+        );
+      }
+    } catch (error) {
+      this.logger.error(`Error enviando notificación: ${error.message}`);
+    }
   }
 
   // 🚫 Notificar ausencia agregada
@@ -271,19 +343,41 @@ export class NotificationsService {
   ) {
     this.logger.log(`🚫 Notificando ausencia agregada: ${employeeName}`);
 
-    const startDateStr = startDate.toLocaleDateString();
-    const endDateStr = endDate.toLocaleDateString();
-    const dateRange =
-      startDateStr === endDateStr
-        ? startDateStr
-        : `${startDateStr} - ${endDateStr}`;
+    try {
+      // Obtener usuarios de la empresa
+      const users = await this.userRepository.find({
+        where: { company: { id: companyId } },
+        relations: ['company']
+      });
 
-    await this.createNotification(
-      companyId,
-      '🚫 Nueva ausencia registrada',
-      `Se registró una ausencia para ${employeeName} del ${dateRange}${description ? `: ${description}` : ''}`,
-      'absence_added' as NotificationType
-    );
+      if (users.length === 0) {
+        this.logger.warn(
+          `⚠️ No se encontraron usuarios para la empresa ${companyId}`
+        );
+        return;
+      }
+
+      const startDateStr = startDate.toLocaleDateString();
+      const endDateStr = endDate.toLocaleDateString();
+      const dateRange =
+        startDateStr === endDateStr
+          ? startDateStr
+          : `${startDateStr} - ${endDateStr}`;
+
+      // Crear notificación para cada usuario de la empresa
+      for (const user of users) {
+        await this.createNotification(
+          user.id,
+          '🚫 Nueva ausencia registrada',
+          `Se registró una ausencia para ${employeeName} del ${dateRange}${description ? `: ${description}` : ''}`,
+          'absence_added' as NotificationType
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error enviando notificación de ausencia: ${error.message}`
+      );
+    }
   }
 
   // 💰 Notificar nómina procesada
@@ -360,35 +454,193 @@ export class NotificationsService {
     title: string,
     message: string,
     scheduledDate: Date,
-    type: NotificationType = 'custom_notification' as NotificationType
+    type: NotificationType = 'custom_notification' as NotificationType,
+    recipientType: RecipientType = RecipientType.ALL,
+    recipientEmails?: string[],
+    recipientEmployeeIds?: string[]
   ) {
     this.logger.log(
       `📅 Agendando recordatorio para ${scheduledDate.toISOString()}`
     );
 
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException('Usuario no encontrado');
-    }
+    // Validar fecha futura y usuario
+    this.validateFutureDate(scheduledDate);
+    const user = await this.findUserById(userId);
 
     // Crear notificación programada
-    const notification = this.notificationRepository.create({
+    const scheduledNotification = this.scheduledNotificationRepository.create({
       title,
       message,
-      type,
-      user,
-      is_read: false,
-      is_deleted: false
+      recipient_type: recipientType,
+      recipient_emails: recipientEmails
+        ? JSON.stringify(recipientEmails)
+        : null,
+      recipient_employee_ids: recipientEmployeeIds
+        ? JSON.stringify(recipientEmployeeIds)
+        : null,
+      scheduled_date: scheduledDate,
+      is_executed: false,
+      email_sent: false,
+      is_deleted: false,
+      created_by: userId
     });
 
-    const savedNotification =
-      await this.notificationRepository.save(notification);
+    const savedScheduledNotification =
+      await this.scheduledNotificationRepository.save(scheduledNotification);
 
     this.logger.log(
       `✅ Recordatorio agendado: ${title} para ${scheduledDate.toLocaleString()}`
     );
 
-    return savedNotification;
+    return savedScheduledNotification;
+  }
+
+  // 🔔 Ejecutar notificación programada
+  private async executeScheduledNotification(
+    scheduledNotification: ScheduledNotification
+  ) {
+    try {
+      this.logger.log(
+        `🚀 Ejecutando notificación programada: ${scheduledNotification.title}`
+      );
+
+      // Obtener destinatarios
+      const recipients = await this.getRecipients(scheduledNotification);
+
+      // Crear notificaciones para cada destinatario
+      for (const recipient of recipients) {
+        await this.createNotification(
+          recipient.id,
+          scheduledNotification.title,
+          scheduledNotification.message,
+          'custom_notification' as NotificationType
+        );
+      }
+
+      // Enviar emails si hay destinatarios
+      if (recipients.length > 0) {
+        await this.sendScheduledNotificationEmails(
+          scheduledNotification,
+          recipients
+        );
+      }
+
+      // Marcar como ejecutada
+      await this.scheduledNotificationRepository.update(
+        scheduledNotification.id,
+        {
+          is_executed: true,
+          executed_at: new Date()
+        }
+      );
+
+      this.logger.log(
+        `✅ Notificación programada ejecutada: ${scheduledNotification.title}`
+      );
+    } catch (error) {
+      this.logger.error(`❌ Error ejecutando notificación programada:`, error);
+    }
+  }
+
+  // 📧 Obtener destinatarios según el tipo
+  private async getRecipients(
+    scheduledNotification: ScheduledNotification
+  ): Promise<User[]> {
+    const recipients: User[] = [];
+
+    switch (scheduledNotification.recipient_type) {
+      case RecipientType.ALL:
+        // Todos los usuarios de la empresa del creador
+        const creator = await this.userRepository.findOne({
+          where: { id: scheduledNotification.created_by },
+          relations: ['company']
+        });
+
+        if (creator?.company) {
+          const allUsers = await this.userRepository.find({
+            where: { company: { id: creator.company.id } }
+          });
+          recipients.push(...allUsers);
+        }
+        break;
+
+      case RecipientType.EMPLOYEES:
+        // Empleados específicos
+        if (scheduledNotification.recipient_employee_ids) {
+          const employeeIds = JSON.parse(
+            scheduledNotification.recipient_employee_ids
+          );
+          const employees = await this.employeeRepository
+            .createQueryBuilder('employee')
+            .leftJoinAndSelect('employee.user', 'user')
+            .where('employee.id IN (:...employeeIds)', { employeeIds })
+            .getMany();
+
+          for (const employee of employees) {
+            if (employee.user) {
+              recipients.push(employee.user);
+            }
+          }
+        }
+        break;
+
+      case RecipientType.SPECIFIC:
+        // Emails específicos - crear usuarios temporales o buscar por email
+        if (scheduledNotification.recipient_emails) {
+          const emails = JSON.parse(scheduledNotification.recipient_emails);
+          const users = await this.userRepository
+            .createQueryBuilder('user')
+            .where('user.email IN (:...emails)', { emails })
+            .getMany();
+          recipients.push(...users);
+        }
+        break;
+    }
+
+    return recipients;
+  }
+
+  // 📧 Enviar emails de notificación programada
+  private async sendScheduledNotificationEmails(
+    scheduledNotification: ScheduledNotification,
+    recipients: User[]
+  ) {
+    try {
+      const emails = recipients
+        .map((user) => user.email)
+        .filter((email) => email);
+
+      if (emails.length === 0) {
+        this.logger.warn('No hay emails válidos para enviar');
+        return;
+      }
+
+      const subject = `🔔 ${scheduledNotification.title}`;
+
+      for (const email of emails) {
+        await this.sendNotificationEmail(email, subject, 'scheduled_reminder', {
+          title: scheduledNotification.title,
+          message: scheduledNotification.message,
+          scheduled_date: scheduledNotification.scheduled_date
+        });
+      }
+
+      // Marcar como email enviado
+      await this.scheduledNotificationRepository.update(
+        scheduledNotification.id,
+        {
+          email_sent: true,
+          email_sent_at: new Date()
+        }
+      );
+
+      this.logger.log(`📧 Emails enviados a ${emails.length} destinatarios`);
+    } catch (error) {
+      this.logger.error(
+        `❌ Error enviando emails de notificación programada:`,
+        error
+      );
+    }
   }
 
   // 📧 Enviar notificación de suscripción por expirar
@@ -406,26 +658,18 @@ export class NotificationsService {
 
     // Enviar email
     const subject = `⚠️ Tu suscripción ${plan.name} expira en 7 días`;
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #e74c3c;">⚠️ Recordatorio de Expiración</h2>
-        <p>Hola <strong>${company.legal_name}</strong>,</p>
-        <p>Te informamos que tu suscripción al plan <strong>${plan.name}</strong> expirará en <strong>7 días</strong>.</p>
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <h3>Detalles de tu suscripción:</h3>
-          <ul>
-            <li><strong>Plan:</strong> ${plan.name}</li>
-            <li><strong>Precio:</strong> $${plan.price}</li>
-            <li><strong>Fecha de expiración:</strong> ${subscription.end_date.toLocaleDateString()}</li>
-          </ul>
-        </div>
-        <p>Para renovar tu suscripción, por favor contacta con nuestro equipo de soporte.</p>
-        <p>Saludos,<br>Equipo HR System</p>
-      </div>
-    `;
 
     try {
-      await this.sendEmail(company.email, subject, html);
+      await this.sendNotificationEmail(
+        company.email,
+        subject,
+        'subscription_expiry',
+        {
+          company,
+          plan,
+          subscription
+        }
+      );
       this.logger.log(
         `📧 Notificación de expiración enviada a ${company.email}`
       );
@@ -452,22 +696,18 @@ export class NotificationsService {
 
     // Enviar email
     const subject = `🚫 Tu suscripción ${plan.name} ha expirado`;
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #e74c3c;">🚫 Suscripción Expirada</h2>
-        <p>Hola <strong>${company.legal_name}</strong>,</p>
-        <p>Tu suscripción al plan <strong>${plan.name}</strong> ha expirado el <strong>${subscription.end_date.toLocaleDateString()}</strong>.</p>
-        <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
-          <h3>⚠️ Acceso Limitado</h3>
-          <p>Algunas funcionalidades pueden estar limitadas hasta que renueves tu suscripción.</p>
-        </div>
-        <p>Para renovar y continuar disfrutando de todos nuestros servicios, contacta con nuestro equipo.</p>
-        <p>Saludos,<br>Equipo HR System</p>
-      </div>
-    `;
 
     try {
-      await this.sendEmail(company.email, subject, html);
+      await this.sendNotificationEmail(
+        company.email,
+        subject,
+        'subscription_expired',
+        {
+          company,
+          plan,
+          subscription
+        }
+      );
       this.logger.log(
         `📧 Notificación de expiración enviada a ${company.email}`
       );
@@ -493,26 +733,12 @@ export class NotificationsService {
 
     // Enviar email
     const subject = `🎉 ¡Feliz cumpleaños ${employee.first_name}!`;
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #e91e63;">🎉 ¡Feliz Cumpleaños!</h2>
-        <p>Hola <strong>${company.legal_name}</strong>,</p>
-        <p>¡Hoy es el cumpleaños de <strong>${employee.first_name} ${employee.last_name}</strong>! 🎂</p>
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <h3>🎁 Detalles del empleado:</h3>
-          <ul>
-            <li><strong>Nombre:</strong> ${employee.first_name} ${employee.last_name}</li>
-            <li><strong>Email:</strong> ${employee.email}</li>
-            <li><strong>Fecha de nacimiento:</strong> ${employee.birthdate?.toLocaleDateString?.() || 'N/A'}</li>
-          </ul>
-        </div>
-        <p>¡No olvides felicitarlo y hacer que se sienta especial en su día! 🎈</p>
-        <p>Saludos,<br>Equipo HR System</p>
-      </div>
-    `;
 
     try {
-      await this.sendEmail(company.email, subject, html);
+      await this.sendNotificationEmail(company.email, subject, 'birthday', {
+        company,
+        employee
+      });
       this.logger.log(
         `🎂 Notificación de cumpleaños enviada para ${employee.first_name} ${employee.last_name}`
       );
@@ -525,7 +751,7 @@ export class NotificationsService {
   private async checkCompanyHolidays(company: Company, date: Date) {
     try {
       // Obtener el país de la empresa (por defecto AR si no está configurado)
-      const countryCode = 'AR'; // company.country || 'AR'
+      const countryCode = company.country || 'AR';
 
       // Consultar API de feriados
       const isHoliday = await this.checkHolidayAPI(countryCode, date);
@@ -545,26 +771,14 @@ export class NotificationsService {
 
         // Enviar email
         const subject = `🎊 Recordatorio de feriado: ${isHoliday.name}`;
-        const html = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #f39c12;">🎊 Recordatorio de Feriado</h2>
-            <p>Hola <strong>${company.legal_name}</strong>,</p>
-            <p>Te recordamos que <strong>mañana es feriado</strong>: <strong>${isHoliday.name}</strong></p>
-            <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
-              <h3>📅 Información del feriado:</h3>
-              <ul>
-                <li><strong>Fecha:</strong> ${date.toLocaleDateString()}</li>
-                <li><strong>Feriado:</strong> ${isHoliday.name}</li>
-                <li><strong>País:</strong> ${countryCode}</li>
-              </ul>
-            </div>
-            <p>¡Que tengas un excelente día libre! 🎉</p>
-            <p>Saludos,<br>Equipo HR System</p>
-          </div>
-        `;
 
         try {
-          await this.sendEmail(company.email, subject, html);
+          await this.sendNotificationEmail(company.email, subject, 'holiday', {
+            company,
+            holiday: isHoliday,
+            date,
+            countryCode
+          });
           this.logger.log(
             `🎊 Notificación de feriado enviada a ${company.email}`
           );
@@ -644,7 +858,10 @@ export class NotificationsService {
   ) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
-      throw new NotFoundException('Usuario no encontrado');
+      this.logger.warn(
+        `⚠️ Usuario ${userId} no encontrado para notificación: ${title}`
+      );
+      return null; // Retornar null en lugar de lanzar error
     }
 
     const notification = this.notificationRepository.create({
@@ -738,10 +955,7 @@ export class NotificationsService {
 
   // Obtener configuración de notificaciones
   async getNotificationConfig(userId: string) {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException('Usuario no encontrado');
-    }
+    const user = await this.findUserById(userId);
 
     let config = await this.configRepository.findOne({
       where: { user_id: userId }
@@ -765,10 +979,7 @@ export class NotificationsService {
     userId: string,
     configData: UpdateNotificationConfigDto
   ) {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException('Usuario no encontrado');
-    }
+    const user = await this.findUserById(userId);
 
     let config = await this.configRepository.findOne({
       where: { user_id: userId }
@@ -780,5 +991,339 @@ export class NotificationsService {
 
     Object.assign(config, configData);
     return await this.configRepository.save(config);
+  }
+
+  // -------------------------------
+  // 🔧 MÉTODOS PRIVADOS DE UTILIDAD
+  // -------------------------------
+
+  // Validar y obtener usuario por ID
+  private async findUserById(userId: string): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+    return user;
+  }
+
+  // Validar y obtener recordatorio programado por ID
+  private async findScheduledReminderById(
+    userId: string,
+    id: string
+  ): Promise<ScheduledNotification> {
+    const scheduledReminder =
+      await this.scheduledNotificationRepository.findOne({
+        where: {
+          id,
+          created_by: userId,
+          is_deleted: false
+        }
+      });
+
+    if (!scheduledReminder) {
+      throw new NotFoundException('Recordatorio programado no encontrado');
+    }
+
+    return scheduledReminder;
+  }
+
+  // Validar que la fecha sea futura
+  private validateFutureDate(scheduledDate: Date): void {
+    const now = new Date();
+    if (scheduledDate <= now) {
+      throw new BadRequestException(
+        'No se puede programar un recordatorio para una fecha pasada'
+      );
+    }
+  }
+
+  // Enviar email de notificación con template
+  private async sendNotificationEmail(
+    to: string,
+    subject: string,
+    template: string,
+    data: any
+  ): Promise<void> {
+    const html = this.createHtmlTemplate(template, data);
+    await this.sendEmail(to, subject, html);
+  }
+
+  // Crear template HTML según el tipo
+  private createHtmlTemplate(template: string, data: any): string {
+    switch (template) {
+      case 'subscription_expiry':
+        return this.getSubscriptionExpiryTemplate(data);
+      case 'subscription_expired':
+        return this.getSubscriptionExpiredTemplate(data);
+      case 'birthday':
+        return this.getBirthdayTemplate(data);
+      case 'holiday':
+        return this.getHolidayTemplate(data);
+      case 'scheduled_reminder':
+        return this.getScheduledReminderTemplate(data);
+      default:
+        return this.getDefaultTemplate(data);
+    }
+  }
+
+  // Template para suscripción por expirar
+  private getSubscriptionExpiryTemplate(data: any): string {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #e74c3c;">⚠️ Recordatorio de Expiración</h2>
+        <p>Hola <strong>${data.company.legal_name}</strong>,</p>
+        <p>Te informamos que tu suscripción al plan <strong>${data.plan.name}</strong> expirará en <strong>7 días</strong>.</p>
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3>Detalles de tu suscripción:</h3>
+          <ul>
+            <li><strong>Plan:</strong> ${data.plan.name}</li>
+            <li><strong>Precio:</strong> $${data.plan.price}</li>
+            <li><strong>Fecha de expiración:</strong> ${data.subscription.end_date.toLocaleDateString()}</li>
+          </ul>
+        </div>
+        <p>Para renovar tu suscripción, por favor contacta con nuestro equipo de soporte.</p>
+        <p>Saludos,<br>Equipo HR System</p>
+      </div>
+    `;
+  }
+
+  // Template para suscripción expirada
+  private getSubscriptionExpiredTemplate(data: any): string {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #e74c3c;">🚫 Suscripción Expirada</h2>
+        <p>Hola <strong>${data.company.legal_name}</strong>,</p>
+        <p>Tu suscripción al plan <strong>${data.plan.name}</strong> ha expirado el <strong>${data.subscription.end_date.toLocaleDateString()}</strong>.</p>
+        <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+          <h3>⚠️ Acceso Limitado</h3>
+          <p>Algunas funcionalidades pueden estar limitadas hasta que renueves tu suscripción.</p>
+        </div>
+        <p>Para renovar y continuar disfrutando de todos nuestros servicios, contacta con nuestro equipo.</p>
+        <p>Saludos,<br>Equipo HR System</p>
+      </div>
+    `;
+  }
+
+  // Template para cumpleaños
+  private getBirthdayTemplate(data: any): string {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #e91e63;">🎉 ¡Feliz Cumpleaños!</h2>
+        <p>Hola <strong>${data.company.legal_name}</strong>,</p>
+        <p>¡Hoy es el cumpleaños de <strong>${data.employee.first_name} ${data.employee.last_name}</strong>! 🎂</p>
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3>🎁 Detalles del empleado:</h3>
+          <ul>
+            <li><strong>Nombre:</strong> ${data.employee.first_name} ${data.employee.last_name}</li>
+            <li><strong>Email:</strong> ${data.employee.email}</li>
+            <li><strong>Fecha de nacimiento:</strong> ${data.employee.birthdate?.toLocaleDateString?.() || 'N/A'}</li>
+          </ul>
+        </div>
+        <p>¡No olvides felicitarlo y hacer que se sienta especial en su día! 🎈</p>
+        <p>Saludos,<br>Equipo HR System</p>
+      </div>
+    `;
+  }
+
+  // Template para feriados
+  private getHolidayTemplate(data: any): string {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #f39c12;">🎊 Recordatorio de Feriado</h2>
+        <p>Hola <strong>${data.company.legal_name}</strong>,</p>
+        <p>Te recordamos que <strong>mañana es feriado</strong>: <strong>${data.holiday.name}</strong></p>
+        <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+          <h3>📅 Información del feriado:</h3>
+          <ul>
+            <li><strong>Fecha:</strong> ${data.date.toLocaleDateString()}</li>
+            <li><strong>Feriado:</strong> ${data.holiday.name}</li>
+            <li><strong>País:</strong> ${data.countryCode}</li>
+          </ul>
+        </div>
+        <p>¡Que tengas un excelente día libre! 🎉</p>
+        <p>Saludos,<br>Equipo HR System</p>
+      </div>
+    `;
+  }
+
+  // Template para recordatorios programados
+  private getScheduledReminderTemplate(data: any): string {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2c3e50;">🔔 Recordatorio Programado</h2>
+        <p><strong>${data.title}</strong></p>
+        <p>${data.message}</p>
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="margin: 0; color: #6c757d; font-size: 14px;">
+            Este recordatorio fue programado para ${data.scheduled_date.toLocaleString()}
+          </p>
+        </div>
+      </div>
+    `;
+  }
+
+  // Template por defecto
+  private getDefaultTemplate(data: any): string {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2c3e50;">${data.title || 'Notificación'}</h2>
+        <p>${data.message}</p>
+      </div>
+    `;
+  }
+
+  // -------------------------------
+  // 📅 MÉTODOS PARA RECORDATORIOS PROGRAMADOS
+  // -------------------------------
+
+  // Obtener recordatorios programados del usuario
+  async getScheduledReminders(
+    userId: string,
+    page: number = 1,
+    limit: number = 10
+  ) {
+    try {
+      const [scheduledReminders, total] =
+        await this.scheduledNotificationRepository.findAndCount({
+          where: {
+            created_by: userId,
+            is_deleted: false
+          },
+          order: { created_at: 'DESC' },
+          skip: (page - 1) * limit,
+          take: limit
+        });
+
+      return {
+        scheduledReminders,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      };
+    } catch (error) {
+      this.logger.error('Error obteniendo recordatorios programados:', error);
+      throw error;
+    }
+  }
+
+  // Obtener un recordatorio programado específico
+  async getScheduledReminder(userId: string, id: string) {
+    return await this.findScheduledReminderById(userId, id);
+  }
+
+  // Cancelar un recordatorio programado
+  async cancelScheduledReminder(userId: string, id: string) {
+    const scheduledReminder = await this.findScheduledReminderById(userId, id);
+
+    if (scheduledReminder.is_executed) {
+      throw new BadRequestException(
+        'No se puede cancelar un recordatorio que ya fue ejecutado'
+      );
+    }
+
+    scheduledReminder.is_deleted = true;
+    return await this.scheduledNotificationRepository.save(scheduledReminder);
+  }
+
+  // Actualizar un recordatorio programado
+  async updateScheduledReminder(
+    userId: string,
+    id: string,
+    title: string,
+    message: string,
+    scheduledDate: Date,
+    recipientType: RecipientType = RecipientType.ALL,
+    recipientEmails?: string[],
+    recipientEmployeeIds?: string[]
+  ) {
+    const scheduledReminder = await this.findScheduledReminderById(userId, id);
+
+    if (scheduledReminder.is_executed) {
+      throw new BadRequestException(
+        'No se puede actualizar un recordatorio que ya fue ejecutado'
+      );
+    }
+
+    // Validar fecha futura
+    this.validateFutureDate(scheduledDate);
+
+    // Actualizar campos
+    scheduledReminder.title = title;
+    scheduledReminder.message = message;
+    scheduledReminder.scheduled_date = scheduledDate;
+    scheduledReminder.recipient_type = recipientType;
+    scheduledReminder.recipient_emails = recipientEmails
+      ? JSON.stringify(recipientEmails)
+      : null;
+    scheduledReminder.recipient_employee_ids = recipientEmployeeIds
+      ? JSON.stringify(recipientEmployeeIds)
+      : null;
+
+    return await this.scheduledNotificationRepository.save(scheduledReminder);
+  }
+
+  // -------------------------------
+  // 🎊 MÉTODOS PARA FERIADOS
+  // -------------------------------
+
+  // Obtener feriados de un país para un año específico
+  async getHolidaysForCountry(countryCode: string, year: number) {
+    try {
+      const apiUrl = `https://date.nager.at/api/v3/PublicHolidays/${year}/${countryCode}`;
+      const response = await fetch(apiUrl);
+
+      if (!response.ok) {
+        throw new Error(`Error consultando feriados: ${response.statusText}`);
+      }
+
+      const holidays = await response.json();
+
+      return {
+        country: countryCode,
+        year,
+        holidays: holidays.map((holiday: any) => ({
+          date: holiday.date,
+          name: holiday.name,
+          localName: holiday.localName,
+          countryCode: holiday.countryCode,
+          fixed: holiday.fixed,
+          global: holiday.global,
+          counties: holiday.counties,
+          launchYear: holiday.launchYear,
+          types: holiday.types
+        }))
+      };
+    } catch (error) {
+      this.logger.error(
+        `❌ Error obteniendo feriados para ${countryCode} ${year}:`,
+        error
+      );
+      throw new Error(
+        `No se pudieron obtener los feriados para ${countryCode} en ${year}`
+      );
+    }
+  }
+
+  // Verificar si una fecha específica es feriado
+  async checkHolidayForDate(countryCode: string, date: Date) {
+    try {
+      const isHoliday = await this.checkHolidayAPI(countryCode, date);
+
+      return {
+        date: date.toISOString().split('T')[0],
+        country: countryCode,
+        isHoliday: isHoliday.isHoliday,
+        holidayName: isHoliday.name || null
+      };
+    } catch (error) {
+      this.logger.error(
+        `❌ Error verificando feriado para ${countryCode} ${date}:`,
+        error
+      );
+      throw new Error(
+        `No se pudo verificar el feriado para ${countryCode} en ${date.toISOString().split('T')[0]}`
+      );
+    }
   }
 }

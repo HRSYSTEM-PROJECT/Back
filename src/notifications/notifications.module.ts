@@ -10,6 +10,7 @@ import { Suscripcion } from '../suscripcion/entities/suscripcion.entity';
 import { Employee } from '../empleado/entities/empleado.entity';
 import { Notification } from './entities/notification.entity';
 import { NotificationConfig } from './entities/notification-config.entity';
+import { ScheduledNotification } from './entities/scheduled-notification.entity';
 import { UserModule } from 'src/user/user.module';
 
 @Module({
@@ -21,7 +22,8 @@ import { UserModule } from 'src/user/user.module';
       Suscripcion,
       Employee,
       Notification,
-      NotificationConfig
+      NotificationConfig,
+      ScheduledNotification
     ]),
     UserModule
   ],

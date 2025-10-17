@@ -39,6 +39,9 @@ export class Company {
   @Column({ nullable: true })
   email: string;
 
+   @Column()
+  country: string;
+
   @Column({ type: 'text', nullable: true })
   logo: string | null;
 

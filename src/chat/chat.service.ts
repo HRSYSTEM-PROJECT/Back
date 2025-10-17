@@ -30,6 +30,54 @@ export class ChatService {
     private userRepository: Repository<User>
   ) {}
 
+  // 🔍 Buscar usuarios para chat
+  async searchUsers(
+    currentUserId: string, 
+    query: string = '', 
+    page: number = 1, 
+    limit: number = 20
+  ) {
+    this.logger.log(`🔍 Buscando usuarios para chat: "${query}"`);
+
+    const queryBuilder = this.userRepository
+      .createQueryBuilder('user')
+      .where('user.id != :currentUserId', { currentUserId })
+      .andWhere('user.is_deleted = :isDeleted', { isDeleted: false });
+
+    // Si hay query, buscar por nombre o email
+    if (query.trim()) {
+      queryBuilder.andWhere(
+        '(LOWER(user.first_name) LIKE LOWER(:query) OR ' +
+        'LOWER(user.last_name) LIKE LOWER(:query) OR ' +
+        'LOWER(user.email) LIKE LOWER(:query))',
+        { query: `%${query}%` }
+      );
+    }
+
+    // Paginación
+    const offset = (page - 1) * limit;
+    const [users, total] = await queryBuilder
+      .orderBy('user.first_name', 'ASC')
+      .addOrderBy('user.last_name', 'ASC')
+      .skip(offset)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      users: users.map(user => ({
+        id: user.id,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        full_name: `${user.first_name} ${user.last_name}`.trim()
+      })),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
+  }
+
   // 📝 Crear chat directo entre dos usuarios
   async createDirectChat(userId: string, otherUserId: string): Promise<Chat> {
     this.logger.log(`📝 Creando chat directo entre ${userId} y ${otherUserId}`);
