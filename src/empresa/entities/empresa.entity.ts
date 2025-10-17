@@ -31,7 +31,7 @@ export class Company {
   @Column({ nullable: true })
   email: string;
 
-   @Column()
+  @Column()
   country: string;
 
   @Column({ type: 'text', nullable: true })
