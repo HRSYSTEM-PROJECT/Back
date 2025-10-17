@@ -468,22 +468,22 @@ export class NotificationsService {
     const user = await this.findUserById(userId);
 
     // Crear notificación programada
-    const scheduledNotification = this.scheduledNotificationRepository.create({
-      title,
-      message,
-      recipient_type: recipientType,
-      recipient_emails: recipientEmails
-        ? JSON.stringify(recipientEmails)
-        : null,
-      recipient_employee_ids: recipientEmployeeIds
-        ? JSON.stringify(recipientEmployeeIds)
-        : null,
-      scheduled_date: scheduledDate,
-      is_executed: false,
-      email_sent: false,
-      is_deleted: false,
-      created_by: userId
-    });
+    const scheduledNotification = new ScheduledNotification();
+
+    scheduledNotification.title = title;
+    scheduledNotification.message = message;
+    scheduledNotification.recipient_type = recipientType;
+    scheduledNotification.recipient_emails = recipientEmails
+      ? JSON.stringify(recipientEmails)
+      : null;
+    scheduledNotification.recipient_employee_ids = recipientEmployeeIds
+      ? JSON.stringify(recipientEmployeeIds)
+      : null;
+    scheduledNotification.scheduled_date = scheduledDate;
+    scheduledNotification.is_executed = false;
+    scheduledNotification.email_sent = false;
+    scheduledNotification.is_deleted = false;
+    scheduledNotification.created_by = userId;
 
     const savedScheduledNotification =
       await this.scheduledNotificationRepository.save(scheduledNotification);

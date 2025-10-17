@@ -33,10 +33,10 @@ export class ScheduledNotification {
   recipient_type: RecipientType;
 
   @Column('text', { nullable: true })
-  recipient_emails: string; // JSON array of emails
+  recipient_emails: string | null; // JSON array of emails
 
   @Column('text', { nullable: true })
-  recipient_employee_ids: string; // JSON array of employee IDs
+  recipient_employee_ids: string | null; // JSON array of employee IDs
 
   @Column({ type: 'timestamp' })
   scheduled_date: Date;
