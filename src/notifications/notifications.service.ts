@@ -1255,10 +1255,10 @@ export class NotificationsService {
     scheduledReminder.recipient_type = recipientType;
     scheduledReminder.recipient_emails = recipientEmails
       ? JSON.stringify(recipientEmails)
-      : null;
+      : '';
     scheduledReminder.recipient_employee_ids = recipientEmployeeIds
       ? JSON.stringify(recipientEmployeeIds)
-      : null;
+      : '';
 
     return await this.scheduledNotificationRepository.save(scheduledReminder);
   }
