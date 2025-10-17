@@ -21,6 +21,16 @@ export class CreateCompanyDto {
   trade_name: string;
 
   @ApiProperty({
+    example: 'Argentina',
+    description: 'Pais de residencia de la empresa',
+    maxLength: 100
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  country: string;
+
+  @ApiProperty({
     example: 'Tech Solutions S.A.',
     description: 'Razón social única de la empresa',
     maxLength: 100
