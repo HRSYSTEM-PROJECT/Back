@@ -8,8 +8,10 @@ import {
   OnGatewayDisconnect
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { Logger } from '@nestjs/common';
+import { verifyToken } from '@clerk/backend';
+import { CLERK_SECRET_KEY } from 'src/config/envs';
+import { UserService } from 'src/user/user.service';
 import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/send-message.dto';
 
@@ -30,7 +32,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   constructor(
     private chatService: ChatService,
-    private jwtService: JwtService
+    private userService: UserService
   ) {}
 
   // 🔌 Manejar conexión
@@ -38,42 +40,54 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.logger.log(`🔌 Cliente conectado: ${client.id}`);
 
     try {
-      // 🔐 Validar token JWT
-      const token = client.handshake.auth?.token || client.handshake.query?.token;
-      
+      // 🔐 Validar token de Clerk
+      const token =
+        client.handshake.auth?.token || client.handshake.query?.token;
+
       if (!token) {
         this.logger.warn(`❌ Conexión rechazada: Sin token`);
         client.disconnect();
         return;
       }
 
-      // Verificar y decodificar JWT
-      const payload = this.jwtService.verify(token);
-      const userId = payload.sub || payload.userId;
+      // Verificar token de Clerk
+      const payload = await verifyToken(token as string, {
+        secretKey: CLERK_SECRET_KEY
+      });
+      const clerkUserId = payload.sub;
 
-      if (!userId) {
-        this.logger.warn(`❌ Conexión rechazada: Token inválido`);
+      if (!clerkUserId) {
+        this.logger.warn(`❌ Conexión rechazada: Token de Clerk inválido`);
+        client.disconnect();
+        return;
+      }
+
+      // Buscar usuario en la base de datos
+      const userDB = await this.userService.findByClerkId(clerkUserId);
+      if (!userDB) {
+        this.logger.warn(`❌ Conexión rechazada: Usuario no encontrado en DB`);
         client.disconnect();
         return;
       }
 
       // ✅ Usuario autenticado
-      this.userSockets.set(userId, client.id);
-      this.socketUsers.set(client.id, userId);
+      this.userSockets.set(userDB.id, client.id);
+      this.socketUsers.set(client.id, userDB.id);
 
       // Unir al usuario a sus chats
-      await this.joinUserChats(client, userId);
+      await this.joinUserChats(client, userDB.id);
 
-      this.logger.log(`✅ Usuario ${userId} autenticado y conectado`);
-
-    } catch (error) {
+      this.logger.log(
+        `✅ Usuario ${userDB.id} (${userDB.email}) autenticado y conectado`
+      );
+    } catch (error: any) {
       this.logger.warn(`❌ Conexión rechazada: ${error.message}`);
       client.disconnect();
     }
   }
 
   // 🔌 Manejar desconexión
-  async handleDisconnect(client: Socket) {
+  handleDisconnect(client: Socket) {
     this.logger.log(`🔌 Cliente desconectado: ${client.id}`);
 
     const userId = this.socketUsers.get(client.id);
@@ -109,7 +123,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.logger.log(
         `💬 Mensaje enviado en chat ${data.chatId} por usuario ${userId}`
       );
-    } catch (error) {
+    } catch (error: any) {
       client.emit('error', { message: error.message });
       this.logger.error(`❌ Error enviando mensaje:`, error);
     }
@@ -140,7 +154,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.logger.log(
         `✏️ Mensaje editado ${data.messageId} por usuario ${userId}`
       );
-    } catch (error) {
+    } catch (error: any) {
       client.emit('error', { message: error.message });
       this.logger.error(`❌ Error editando mensaje:`, error);
     }
@@ -169,7 +183,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.logger.log(
         `🗑️ Mensaje eliminado ${data.messageId} por usuario ${userId}`
       );
-    } catch (error) {
+    } catch (error: any) {
       client.emit('error', { message: error.message });
       this.logger.error(`❌ Error eliminando mensaje:`, error);
     }
@@ -206,7 +220,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.logger.log(
         `👤 Mensajes marcados como leídos en chat ${data.chatId} por usuario ${userId}`
       );
-    } catch (error) {
+    } catch (error: any) {
       client.emit('error', { message: error.message });
       this.logger.error(`❌ Error marcando mensajes como leídos:`, error);
     }
@@ -214,7 +228,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   // 👥 Unirse a un chat
   @SubscribeMessage('join_chat')
-  async handleJoinChat(
+  handleJoinChat(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { chatId: string }
   ) {
@@ -227,7 +241,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       client.join(`chat_${data.chatId}`);
       this.logger.log(`👥 Usuario ${userId} se unió al chat ${data.chatId}`);
-    } catch (error) {
+    } catch (error: any) {
       client.emit('error', { message: error.message });
       this.logger.error(`❌ Error uniéndose al chat:`, error);
     }
@@ -235,7 +249,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   // 🚪 Salir de un chat
   @SubscribeMessage('leave_chat')
-  async handleLeaveChat(
+  handleLeaveChat(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { chatId: string }
   ) {
@@ -248,7 +262,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       client.leave(`chat_${data.chatId}`);
       this.logger.log(`🚪 Usuario ${userId} salió del chat ${data.chatId}`);
-    } catch (error) {
+    } catch (error: any) {
       client.emit('error', { message: error.message });
       this.logger.error(`❌ Error saliendo del chat:`, error);
     }
@@ -266,13 +280,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       this.logger.log(`👥 Usuario ${userId} unido a ${chats.length} chats`);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`❌ Error uniendo usuario a chats:`, error);
     }
   }
 
   // Enviar mensaje a todos los participantes de un chat
-  private async broadcastToChat(
+  private broadcastToChat(
     chatId: string,
     event: string,
     data: any,
@@ -293,7 +307,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   // Enviar notificación a un usuario específico
-  async sendNotificationToUser(userId: string, event: string, data: any) {
+  sendNotificationToUser(userId: string, event: string, data: any) {
     const socketId = this.userSockets.get(userId);
     if (socketId) {
       this.server.to(socketId).emit(event, data);
