@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { ClerkAuthGuard } from '../auth/guards/clerk.guard';
+import { ScheduleReminderDto } from './dto/schedule-reminder.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -29,7 +30,6 @@ import { AuthenticatedUser } from '../interfaces/authenticated-user.interface';
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
-  @UseGuards(ClerkAuthGuard)
   @Get()
   @ApiOperation({ summary: 'Obtener notificaciones del usuario' })
   @ApiQuery({
@@ -67,7 +67,6 @@ export class NotificationsController {
     return this.notificationsService.findAll(userId, page, limit);
   }
 
-  @UseGuards(ClerkAuthGuard)
   @Post('mark-read/:id')
   @ApiOperation({ summary: 'Marcar notificación como leída' })
   @ApiParam({ name: 'id', description: 'ID de la notificación' })
@@ -95,7 +94,6 @@ export class NotificationsController {
     return this.notificationsService.markAsRead(notificationId, userId);
   }
 
-  @UseGuards(ClerkAuthGuard)
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar notificación' })
   @ApiParam({ name: 'id', description: 'ID de la notificación' })
@@ -123,7 +121,6 @@ export class NotificationsController {
     return this.notificationsService.remove(userId, notificationId);
   }
 
-  @UseGuards(ClerkAuthGuard)
   @Post('mark-all-read')
   @ApiOperation({ summary: 'Marcar todas las notificaciones como leídas' })
   @ApiBody({
@@ -146,7 +143,6 @@ export class NotificationsController {
     return this.notificationsService.markAllAsRead(userId);
   }
 
-  @UseGuards(ClerkAuthGuard)
   @Delete('delete-all')
   @ApiOperation({ summary: 'Eliminar todas las notificaciones' })
   @ApiBody({
@@ -169,7 +165,6 @@ export class NotificationsController {
     return this.notificationsService.deleteAll(userId);
   }
 
-  @UseGuards(ClerkAuthGuard)
   @Get('config')
   @ApiOperation({ summary: 'Obtener configuración de notificaciones' })
   @ApiBody({
@@ -192,7 +187,6 @@ export class NotificationsController {
     return this.notificationsService.getNotificationConfig(userId);
   }
 
-  @UseGuards(ClerkAuthGuard)
   @Put('config')
   @ApiOperation({ summary: 'Actualizar configuración de notificaciones' })
   @ApiBody({
@@ -227,7 +221,6 @@ export class NotificationsController {
     return this.notificationsService.updateNotificationConfig(userId, config);
   }
 
-  @UseGuards(ClerkAuthGuard)
   @Post('create')
   @ApiOperation({ summary: 'Crear una notificación manual (para testing)' })
   @ApiBody({
@@ -284,51 +277,32 @@ export class NotificationsController {
     );
   }
 
-  @UseGuards(ClerkAuthGuard)
   @Post('schedule-reminder')
   @ApiOperation({ summary: 'Agendar un recordatorio personalizado' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        title: { type: 'string', example: 'Reunión importante' },
-        message: {
-          type: 'string',
-          example: 'No olvides la reunión de equipo a las 3 PM'
-        },
-        scheduledDate: {
-          type: 'string',
-          format: 'date-time',
-          example: '2024-01-15T15:00:00.000Z'
-        },
-        type: { type: 'string', example: 'custom_notification' }
-      },
-      required: ['title', 'message', 'scheduledDate']
-    }
-  })
   @ApiResponse({
     status: 201,
     description: 'Recordatorio agendado exitosamente.'
   })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos - La fecha debe ser futura'
+  })
   async scheduleReminder(
     @Req() req: Request & { user: AuthenticatedUser },
-    @Body()
-    body: {
-      title: string;
-      message: string;
-      scheduledDate: string;
-      type?: string;
-    }
+    @Body() scheduleReminderDto: ScheduleReminderDto
   ) {
     const userId = req.user.id;
-    const scheduledDate = new Date(body.scheduledDate);
+    const scheduledDate = new Date(scheduleReminderDto.scheduledDate);
 
     return this.notificationsService.scheduleReminder(
       userId,
-      body.title,
-      body.message,
+      scheduleReminderDto.title,
+      scheduleReminderDto.message,
       scheduledDate,
-      (body.type as any) || 'custom_notification'
+      (scheduleReminderDto.type as any) || 'custom_notification',
+      scheduleReminderDto.recipientType || ('all' as any),
+      scheduleReminderDto.recipientEmails,
+      scheduleReminderDto.recipientEmployeeIds
     );
   }
 
@@ -336,7 +310,6 @@ export class NotificationsController {
   // 🆕 NUEVOS ENDPOINTS AGREGADOS
   // -------------------------------
 
-  @UseGuards(ClerkAuthGuard)
   @Get('cron-status')
   @ApiOperation({
     summary: 'Obtener el estado actual de los crons de notificaciones'
@@ -349,7 +322,6 @@ export class NotificationsController {
     return await this.notificationsService.getCronStatus();
   }
 
-  @UseGuards(ClerkAuthGuard)
   @Get('cron-notifications')
   @ApiOperation({
     summary:
@@ -368,5 +340,137 @@ export class NotificationsController {
   })
   async getCronNotifications(@Query('limit') limit: number = 20) {
     return this.notificationsService.getRecentCronNotifications(limit);
+  }
+
+  // -------------------------------
+  // 📅 ENDPOINTS PARA RECORDATORIOS PROGRAMADOS
+  // -------------------------------
+
+  @Get('scheduled')
+  @ApiOperation({ summary: 'Obtener recordatorios programados del usuario' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Límite de recordatorios por página'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Recordatorios programados obtenidos exitosamente'
+  })
+  async getScheduledReminders(
+    @Req() req: Request & { user: AuthenticatedUser },
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10
+  ) {
+    const userId = req.user.id;
+    return this.notificationsService.getScheduledReminders(userId, page, limit);
+  }
+
+  @Get('scheduled/:id')
+  @ApiOperation({ summary: 'Obtener un recordatorio programado específico' })
+  @ApiParam({ name: 'id', description: 'ID del recordatorio programado' })
+  @ApiResponse({
+    status: 200,
+    description: 'Recordatorio programado obtenido exitosamente'
+  })
+  @ApiResponse({ status: 404, description: 'Recordatorio no encontrado' })
+  async getScheduledReminder(
+    @Req() req: Request & { user: AuthenticatedUser },
+    @Param('id') id: string
+  ) {
+    const userId = req.user.id;
+    return this.notificationsService.getScheduledReminder(userId, id);
+  }
+
+  @Delete('scheduled/:id')
+  @ApiOperation({ summary: 'Cancelar un recordatorio programado' })
+  @ApiParam({ name: 'id', description: 'ID del recordatorio programado' })
+  @ApiResponse({
+    status: 200,
+    description: 'Recordatorio cancelado exitosamente'
+  })
+  @ApiResponse({ status: 404, description: 'Recordatorio no encontrado' })
+  async cancelScheduledReminder(
+    @Req() req: Request & { user: AuthenticatedUser },
+    @Param('id') id: string
+  ) {
+    const userId = req.user.id;
+    return this.notificationsService.cancelScheduledReminder(userId, id);
+  }
+
+  @Put('scheduled/:id')
+  @ApiOperation({ summary: 'Actualizar un recordatorio programado' })
+  @ApiParam({ name: 'id', description: 'ID del recordatorio programado' })
+  @ApiBody({ type: ScheduleReminderDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Recordatorio actualizado exitosamente'
+  })
+  @ApiResponse({ status: 404, description: 'Recordatorio no encontrado' })
+  async updateScheduledReminder(
+    @Req() req: Request & { user: AuthenticatedUser },
+    @Param('id') id: string,
+    @Body() scheduleReminderDto: ScheduleReminderDto
+  ) {
+    const userId = req.user.id;
+    const scheduledDate = new Date(scheduleReminderDto.scheduledDate);
+
+    return this.notificationsService.updateScheduledReminder(
+      userId,
+      id,
+      scheduleReminderDto.title,
+      scheduleReminderDto.message,
+      scheduledDate,
+      scheduleReminderDto.recipientType || ('all' as any),
+      scheduleReminderDto.recipientEmails,
+      scheduleReminderDto.recipientEmployeeIds
+    );
+  }
+
+  // -------------------------------
+  // 🎊 ENDPOINTS PARA FERIADOS
+  // -------------------------------
+
+  @Get('holidays/:country/:year')
+  @ApiOperation({
+    summary: 'Obtener feriados de un país para un año específico'
+  })
+  @ApiParam({
+    name: 'country',
+    description: 'Código del país (ej: AR, US, BR)'
+  })
+  @ApiParam({ name: 'year', description: 'Año para consultar feriados' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de feriados obtenida exitosamente'
+  })
+  async getHolidays(
+    @Param('country') country: string,
+    @Param('year') year: number
+  ) {
+    return this.notificationsService.getHolidaysForCountry(country, year);
+  }
+
+  @Get('holidays/check/:date/:country')
+  @ApiOperation({ summary: 'Verificar si una fecha específica es feriado' })
+  @ApiParam({ name: 'date', description: 'Fecha a verificar (YYYY-MM-DD)' })
+  @ApiParam({ name: 'country', description: 'Código del país' })
+  @ApiResponse({
+    status: 200,
+    description: 'Información del feriado obtenida exitosamente'
+  })
+  async checkHoliday(
+    @Param('date') date: string,
+    @Param('country') country: string
+  ) {
+    const checkDate = new Date(date);
+    return this.notificationsService.checkHolidayForDate(country, checkDate);
   }
 }
