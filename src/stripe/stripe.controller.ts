@@ -1,12 +1,53 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Req,
+  ForbiddenException
+} from '@nestjs/common';
 import { StripeService } from './stripe.service';
+import { ApiOperation, ApiBody } from '@nestjs/swagger';
+import { ClerkAuthGuard } from 'src/auth/guards/clerk.guard';
+import type { AuthRequest } from 'src/interfaces/authrequest.interface';
 
 @Controller('stripe')
 export class StripeController {
   constructor(private readonly stripeService: StripeService) {}
 
+  @UseGuards(ClerkAuthGuard)
   @Post('checkout')
-  async createCheckout(@Body() body: { companyId: string; planId: string }) {
+  @ApiOperation({
+    summary: 'Actualiza a una suscripcion de pago.',
+    description: 'Actualiza una suscripción para una empresa autenticada'
+  })
+  @ApiBody({
+    schema: {
+      type: 'object', // JSON object
+      properties: {
+        companyId: {
+          type: 'string', // companyId
+          description: 'The ID of the company.',
+          example: 'a1b2c3d4e5f6'
+        },
+        planId: {
+          type: 'string', // planId
+          description: 'The ID of the subscription plan.',
+          example: 'plan_xyz789'
+        }
+      },
+      required: ['companyId', 'planId']
+    }
+  })
+  async createCheckout(
+    @Body() body: { companyId: string; planId: string },
+    @Req() req: AuthRequest
+  ) {
+    //Validad que empresa que solicita sea la misma que inció sesión
+    if (req.user.companyId !== body.companyId) {
+      throw new ForbiddenException('Not authorized for this company');
+    }
+
     const session = await this.stripeService.createCheckoutSession(
       body.companyId,
       body.planId
@@ -14,8 +55,31 @@ export class StripeController {
     return { url: session.url, sessionId: session.id };
   }
 
+  @UseGuards(ClerkAuthGuard)
   @Post('cancel')
-  async cancel(@Body() body: { companyId: string }) {
+  @ApiOperation({
+    summary: 'Cancela a una suscripcion de pago.',
+    description: 'Cancela una suscripción para una empresa autenticada'
+  })
+  @ApiBody({
+    schema: {
+      type: 'object', // JSON object
+      properties: {
+        companyId: {
+          type: 'string', // companyId
+          description: 'The ID of the company.',
+          example: 'a1b2c3d4e5f6'
+        }
+      },
+      required: ['companyId']
+    }
+  })
+  async cancel(@Body() body: { companyId: string }, @Req() req: AuthRequest) {
+    //Validad que empresa que solicita sea la misma que inció sesión
+    if (req.user.companyId !== body.companyId) {
+      throw new ForbiddenException('Not authorized for this company');
+    }
+
     return this.stripeService.cancelActiveSubscription(body.companyId);
   }
 }
