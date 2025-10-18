@@ -143,11 +143,7 @@ export class SuscripcionService {
 
     const activeSuscription = await this.suscripcionRepository.findOne({
       where: {
-        company: { id: companyId },
-        // Filtra donde la fecha de inicio es <= a la fecha actual
-        start_date: LessThanOrEqual(currentDate),
-        // Y la fecha de fin es >= a la fecha actual
-        end_date: MoreThanOrEqual(currentDate)
+        company: { id: companyId }
       },
       relations: ['company', 'plan']
     });
