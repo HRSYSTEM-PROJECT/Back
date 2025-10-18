@@ -98,7 +98,7 @@ export class SuscripcionController {
 
   //-----Encontrar la suscripcion actual de una empresa---//
   @UseGuards(ClerkAuthGuard)
-  @Get('/current')
+  @Get('/company/current')
   @ApiOperation({
     summary: 'Suscripcion actual de una empresa.',
     description: 'Devuelve la suscripcion actual de una empresa en particular.'
