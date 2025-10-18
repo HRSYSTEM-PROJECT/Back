@@ -40,32 +40,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.logger.log(`🔌 Cliente conectado: ${client.id}`);
 
     try {
-      // 🔐 Validar token de Clerk
-      const token =
-        client.handshake.auth?.token || client.handshake.query?.token;
-
+      // 🔐 Validar token JWT
+      const token = client.handshake.auth?.token || client.handshake.query?.token;
+      
       if (!token) {
         this.logger.warn(`❌ Conexión rechazada: Sin token`);
         client.disconnect();
         return;
       }
 
-      // Verificar token de Clerk
-      const payload = await verifyToken(token as string, {
-        secretKey: CLERK_SECRET_KEY
-      });
-      const clerkUserId = payload.sub;
+      // Verificar y decodificar JWT
+      const payload = this.jwtService.verify(token);
+      const userId = payload.sub || payload.userId;
 
-      if (!clerkUserId) {
-        this.logger.warn(`❌ Conexión rechazada: Token de Clerk inválido`);
-        client.disconnect();
-        return;
-      }
-
-      // Buscar usuario en la base de datos
-      const userDB = await this.userService.findByClerkId(clerkUserId);
-      if (!userDB) {
-        this.logger.warn(`❌ Conexión rechazada: Usuario no encontrado en DB`);
+      if (!userId) {
+        this.logger.warn(`❌ Conexión rechazada: Token inválido`);
         client.disconnect();
         return;
       }
@@ -77,10 +66,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Unir al usuario a sus chats
       await this.joinUserChats(client, userDB.id);
 
-      this.logger.log(
-        `✅ Usuario ${userDB.id} (${userDB.email}) autenticado y conectado`
-      );
-    } catch (error: any) {
+      this.logger.log(`✅ Usuario ${userId} autenticado y conectado`);
+
+    } catch (error) {
       this.logger.warn(`❌ Conexión rechazada: ${error.message}`);
       client.disconnect();
     }
