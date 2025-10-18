@@ -123,11 +123,11 @@ export class NotificationsService {
   // Devuelve notificaciones recientes generadas por crons (filtramos por tipos automáticos)
   async getRecentCronNotifications(limit = 20) {
     const automaticTypes: NotificationType[] = [
-      'subscription_expiring' as NotificationType,
-      'subscription_expired' as NotificationType,
-      'birthday_reminder' as NotificationType,
-      'holiday_reminder' as NotificationType,
-      'evaluation_reminder' as NotificationType
+      NotificationType.SUBSCRIPTION_EXPIRING,
+      NotificationType.SUBSCRIPTION_EXPIRED,
+      NotificationType.BIRTHDAY_REMINDER,
+      NotificationType.HOLIDAY_REMINDER,
+      NotificationType.EVALUATION_REMINDER
     ];
 
     return this.notificationRepository.find({
