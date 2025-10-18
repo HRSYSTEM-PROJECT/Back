@@ -89,12 +89,30 @@ export class WebhookService {
           throw new NotFoundException('Plan asociado no encontrado');
         }
 
+        // Calcular fechas locales de la suscripción
+        let startDate: Date;
+        let endDate: Date;
+
+        if (
+          subscription.current_period_start &&
+          subscription.current_period_end
+        ) {
+          // Stripe devolvió timestamps válidos
+          startDate = new Date(subscription.current_period_start * 1000);
+          endDate = new Date(subscription.current_period_end * 1000);
+        } else {
+          // Stripe no devolvió fechas, calculamos por el plan local
+          startDate = new Date();
+          endDate = new Date(startDate);
+          endDate.setDate(startDate.getDate() + (plan?.duration_days ?? 30));
+        }
+
         // Crear nueva suscripción en la base de datos
         const newSub = await this.suscripcionService.createFromStripe({
           companyId,
           planId: plan.id,
-          startDate: new Date(subscription.current_period_start * 1000),
-          endDate: new Date(subscription.current_period_end * 1000),
+          startDate,
+          endDate,
           stripe_subscription_id: subscription.id,
           stripe_price_id: priceId,
           stripe_customer_id: subscription.customer as string,
@@ -114,6 +132,11 @@ export class WebhookService {
         break;
       }
 
+      case 'customer.subscription.created':
+        console.log(
+          'Evento ignorado intencionalmente (Stripe lo crea automáticamente)'
+        );
+        break;
       /**
        * ✅ Ocurre cuando Stripe actualiza una suscripción (cambio de plan, cancelación, etc.)
        */
