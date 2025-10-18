@@ -5,7 +5,7 @@ import {
   BadRequestException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import sgMail from '@sendgrid/mail';
@@ -131,7 +131,7 @@ export class NotificationsService {
     ];
 
     return this.notificationRepository.find({
-      where: { type: automaticTypes as any, is_deleted: false },
+      where: { type: In(automaticTypes), is_deleted: false },
       order: { created_at: 'DESC' },
       take: limit
     });
