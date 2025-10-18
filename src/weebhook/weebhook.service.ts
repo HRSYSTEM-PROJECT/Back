@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException
+} from '@nestjs/common';
 import Stripe from 'stripe';
 import { STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET } from 'src/config/envs';
 
@@ -6,18 +10,21 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from 'src/empresa/entities/empresa.entity';
 import { Plan } from 'src/plan/entities/plan.entity';
+import { Suscripcion } from 'src/suscripcion/entities/suscripcion.entity';
 import { SuscripcionService } from 'src/suscripcion/suscripcion.service';
 
 @Injectable()
 export class WebhookService {
-  private readonly stripe: Stripe;
+  private stripe: Stripe;
 
   constructor(
     private readonly suscripcionService: SuscripcionService,
     @InjectRepository(Company)
     private readonly companiesRepository: Repository<Company>,
     @InjectRepository(Plan)
-    private readonly plansRepository: Repository<Plan>
+    private readonly plansRepository: Repository<Plan>,
+    @InjectRepository(Suscripcion)
+    private readonly suscripcionesRepository: Repository<Suscripcion>
   ) {
     this.stripe = new Stripe(STRIPE_SECRET_KEY, {
       apiVersion: '2025-09-30.clover'
@@ -25,14 +32,13 @@ export class WebhookService {
   }
 
   async handleEvent(rawBody: Buffer, signature: string) {
-    const endpointSecret = STRIPE_WEBHOOK_SECRET;
     let event: Stripe.Event;
 
     try {
       event = this.stripe.webhooks.constructEvent(
         rawBody,
         signature,
-        endpointSecret
+        STRIPE_WEBHOOK_SECRET
       );
     } catch (err: any) {
       throw new BadRequestException(`Webhook Error: ${err.message}`);
@@ -41,7 +47,6 @@ export class WebhookService {
     switch (event.type) {
       /**
        * ✅ Ocurre cuando el checkout se completa exitosamente.
-       * Aquí se crea la nueva suscripción en Stripe.
        */
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
@@ -54,7 +59,7 @@ export class WebhookService {
           throw new BadRequestException('Faltan metadatos en la sesión');
         }
 
-        // 🔹 Obtener detalles completos de la suscripción
+        //  Obtener detalles completos de la suscripción
         const subscription: any = await this.stripe.subscriptions.retrieve(
           subscriptionId,
           {
@@ -62,16 +67,16 @@ export class WebhookService {
           }
         );
 
-        // 🔹 Marcar la suscripción activa local como finalizada HOY
+        // Finalizar la suscripción activa (FREE)
         await this.suscripcionService.endActiveSubscriptionForCompany(
           companyId,
           new Date()
         );
 
-        // 🔹 Buscar el plan local
+        // Buscar el plan correspondiente en tu DB
         let plan: Plan | null = null;
-        if (subscription.items.data[0]) {
-          const priceId = subscription.items.data[0].price.id;
+        const priceId = subscription.items.data[0]?.price?.id;
+        if (priceId) {
           plan = await this.plansRepository.findOne({
             where: { stripe_price_id: priceId }
           });
@@ -80,17 +85,31 @@ export class WebhookService {
           plan = await this.plansRepository.findOne({ where: { id: planId } });
         }
 
-        // 🔹 Crear nueva suscripción en la base de datos
-        await this.suscripcionService.createFromStripe({
+        if (!plan) {
+          throw new NotFoundException('Plan asociado no encontrado');
+        }
+
+        // Crear nueva suscripción en la base de datos
+        const newSub = await this.suscripcionService.createFromStripe({
           companyId,
-          planId: plan?.id,
+          planId: plan.id,
           startDate: new Date(subscription.current_period_start * 1000),
           endDate: new Date(subscription.current_period_end * 1000),
           stripe_subscription_id: subscription.id,
-          stripe_price_id: subscription.items.data[0]?.price?.id,
+          stripe_price_id: priceId,
           stripe_customer_id: subscription.customer as string,
           status: subscription.status
         });
+        // Actualizar la referencia 1:1 de la empresa a la nueva suscripción
+        const company = await this.companiesRepository.findOne({
+          where: { id: companyId },
+          relations: ['suscripciones']
+        });
+
+        if (company) {
+          company.suscripciones = newSub;
+          await this.companiesRepository.save(company);
+        }
 
         break;
       }
@@ -109,7 +128,6 @@ export class WebhookService {
       }
 
       default:
-        // Puedes loguear eventos adicionales para debugging si deseas
         console.log(`Evento ignorado: ${event.type}`);
         break;
     }

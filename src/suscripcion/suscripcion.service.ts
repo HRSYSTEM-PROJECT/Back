@@ -298,40 +298,24 @@ export class SuscripcionService {
    * Finaliza la suscripción activa actual de la empresa (marca el end_date como "now")
    */
   async endActiveSubscriptionForCompany(companyId: string, endDate: Date) {
-    const currentDate = new Date();
-
-    const active = await this.suscripcionRepository.findOne({
-      where: {
-        company: { id: companyId },
-        start_date: LessThanOrEqual(currentDate),
-        end_date: MoreThanOrEqual(currentDate)
-      },
-      relations: ['company', 'plan']
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+      relations: ['suscripciones']
     });
 
-    if (active) {
-      active.end_date = endDate;
-      await this.suscripcionRepository.save(active);
-    }
+    if (!company || !company.suscripciones) return;
 
-    return active;
+    company.suscripciones.end_date = endDate;
+    company.suscripciones.status = 'expired';
+    await this.suscripcionRepository.save(company.suscripciones);
   }
 
   /**
    * Crea una nueva suscripción a partir de los datos recibidos desde Stripe
    */
-  async createFromStripe({
-    companyId,
-    planId,
-    startDate,
-    endDate,
-    stripe_subscription_id,
-    stripe_price_id,
-    stripe_customer_id,
-    status
-  }: {
+  async createFromStripe(data: {
     companyId: string;
-    planId?: string;
+    planId: string;
     startDate: Date;
     endDate: Date;
     stripe_subscription_id: string;
@@ -339,26 +323,27 @@ export class SuscripcionService {
     stripe_customer_id: string;
     status: string;
   }) {
+    const { companyId, planId } = data;
+
     const company = await this.companyRepository.findOne({
       where: { id: companyId }
     });
+    const plan = await this.planRepository.findOne({ where: { id: planId } });
 
-    if (!company) throw new NotFoundException('Company not found');
+    if (!company || !plan) {
+      throw new NotFoundException('Company o Plan no encontrados');
+    }
 
-    const plan = planId
-      ? await this.planRepository.findOne({ where: { id: planId } })
-      : null;
-
-    if (!plan) throw new NotFoundException('Company not found');
-
-    const newSub = new Suscripcion();
-    newSub.company = company;
-    newSub.plan = plan;
-    newSub.start_date = startDate;
-    newSub.end_date = endDate;
-    newSub.stripe_subscription_id = stripe_subscription_id;
-    newSub.stripe_price_id = stripe_price_id;
-    newSub.status = status;
+    const newSub = this.suscripcionRepository.create({
+      company,
+      plan,
+      start_date: data.startDate,
+      end_date: data.endDate,
+      stripe_subscription_id: data.stripe_subscription_id,
+      stripe_price_id: data.stripe_price_id,
+      stripe_customer_id: data.stripe_customer_id,
+      status: data.status
+    });
 
     return await this.suscripcionRepository.save(newSub);
   }
