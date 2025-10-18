@@ -4,7 +4,7 @@ export const plans_data = [
   {
     name: Plans.PREMIUM,
     price: 100.0,
-    stripe_price_id: 'prod_TFVdtbmnYVrExC',
+    stripe_price_id: 'price_1SJ0cI8G9Ja1HpPE6K4hKEzu',
     duration_days: 30
   },
   { name: Plans.ENTERPRISE, price: 150.0, duration_days: 30 }
