@@ -7,7 +7,10 @@ import { DepartamentoModule } from '../departamento/departamento.module';
 import { PositionModule } from '../position/position.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Company, DepartamentoModule, PositionModule])],
+  imports: [TypeOrmModule.forFeature([Company]),
+  DepartamentoModule,
+  PositionModule
+],
   controllers: [EmpresaController],
   providers: [EmpresaService]
 })
