@@ -138,7 +138,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Verificar suscripciones que expiran en 7 días
-  @Cron('* * * * *') // Cada minuto (TEMPORAL PARA TESTING)
+  @Cron('0 9 * * *') // Todos los días a las 9:00 AM
   async checkExpiringSubscriptions() {
     const cronName = 'checkExpiringSubscriptions';
     this.logger.log('🔍 Verificando suscripciones que expiran en 7 días...');
@@ -211,7 +211,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Verificar suscripciones expiradas
-  @Cron('* * * * *') // Cada minuto (TEMPORAL PARA TESTING)
+  @Cron('0 10 * * *') // Todos los días a las 10:00 AM
   async checkExpiredSubscriptions() {
     const cronName = 'checkExpiredSubscriptions';
     this.logger.log('🔍 Verificando suscripciones expiradas...');
@@ -241,7 +241,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Recordatorio de cumpleaños
-  @Cron('* * * * *') // Cada minuto (TEMPORAL PARA TESTING)
+  @Cron('0 8 * * *') // Todos los días a las 8:00 AM
   async checkBirthdays() {
     const cronName = 'checkBirthdays';
     this.logger.log('🎂 Verificando cumpleaños de empleados...');
@@ -272,7 +272,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Recordatorios de feriados
-  @Cron('* * * * *') // Cada minuto (TEMPORAL PARA TESTING)
+  @Cron('0 7 * * *') // Todos los días a las 7:00 AM
   async checkHolidays() {
     const cronName = 'checkHolidays';
     this.logger.log('🎊 Verificando feriados...');
@@ -815,34 +815,88 @@ export class NotificationsService {
       // URL de ejemplo para una API de feriados (reemplazar con API real)
       const apiUrl = `https://date.nager.at/api/v3/IsPublicHoliday/${year}-${month}-${day}/${countryCode}`;
 
-      const response = await fetch(apiUrl);
-      const isHoliday = await response.json();
+      // Agregar timeout y mejor manejo de errores
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
+
+      const response = await fetch(apiUrl, {
+        signal: controller.signal,
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'HR-System/1.0'
+        }
+      });
+
+      clearTimeout(timeoutId);
+
+      // Verificar status de respuesta
+      if (!response.ok) {
+        this.logger.warn(
+          `⚠️ API de feriados respondió con status ${response.status}`
+        );
+        return { isHoliday: false };
+      }
+
+      // Verificar si la respuesta tiene contenido
+      const responseText = await response.text();
+      if (!responseText || responseText.trim() === '') {
+        this.logger.warn(`⚠️ API de feriados devolvió respuesta vacía`);
+        return { isHoliday: false };
+      }
+
+      const isHoliday = JSON.parse(responseText);
 
       if (isHoliday) {
         // Si es feriado, obtener el nombre del feriado
         const holidayInfoUrl = `https://date.nager.at/api/v3/PublicHolidays/${year}/${countryCode}`;
-        const holidayResponse = await fetch(holidayInfoUrl);
-        const holidays = await holidayResponse.json();
+        try {
+          const holidayResponse = await fetch(holidayInfoUrl, {
+            signal: controller.signal,
+            headers: {
+              Accept: 'application/json',
+              'User-Agent': 'HR-System/1.0'
+            }
+          });
 
-        const holiday = holidays.find((h: any) => {
-          const holidayDate = new Date(h.date);
-          return (
-            holidayDate.getDate() === date.getDate() &&
-            holidayDate.getMonth() === date.getMonth()
+          if (holidayResponse.ok) {
+            const holidays = await holidayResponse.json();
+
+            const holiday = holidays.find((h: any) => {
+              const holidayDate = new Date(h.date);
+              return (
+                holidayDate.getDate() === date.getDate() &&
+                holidayDate.getMonth() === date.getMonth()
+              );
+            });
+
+            return {
+              isHoliday: true,
+              name: holiday ? holiday.name : 'Feriado'
+            };
+          }
+        } catch (holidayError) {
+          this.logger.warn(
+            `⚠️ Error obteniendo nombre del feriado: ${holidayError.message}`
           );
-        });
+        }
 
         return {
           isHoliday: true,
-          name: holiday ? holiday.name : 'Feriado'
+          name: 'Feriado'
         };
       }
 
       return { isHoliday: false };
     } catch (error) {
-      this.logger.error(
-        `❌ Error consultando API de feriados: ${error.message}`
-      );
+      if (error.name === 'AbortError') {
+        this.logger.warn(
+          `⚠️ Timeout consultando API de feriados para ${countryCode}`
+        );
+      } else {
+        this.logger.error(
+          `❌ Error consultando API de feriados: ${error.message}`
+        );
+      }
 
       // Si la API falla, asumir que no es feriado para evitar notificaciones incorrectas
       return { isHoliday: false };
