@@ -385,7 +385,6 @@ import { JwtService } from '@nestjs/jwt';
 import { DepartamentoService } from 'src/departamento/departamento.service';
 import { PositionService } from 'src/position/position.service';
 
-
 @Injectable()
 export class AuthService {
   constructor(
@@ -434,6 +433,7 @@ export class AuthService {
         company.logo = newRegister.logo_url;
         company.phone_number = newRegister.phone_number;
         company.address = newRegister.address;
+        company.country = newRegister.country;
 
         const savedCompany = await manager.save(Company, company);
 
@@ -502,8 +502,7 @@ export class AuthService {
 
         await manager.save(User, newUser);
         await this.departamentoService.seeder(savedCompany.id, manager);
-await this.positionService.seeder(savedCompany.id, manager);
-
+        await this.positionService.seeder(savedCompany.id, manager);
 
         return {
           message: 'Register successfully.'
