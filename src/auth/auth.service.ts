@@ -381,8 +381,10 @@ import { Suscripcion } from 'src/suscripcion/entities/suscripcion.entity';
 import { Rol } from 'src/rol/entities/rol.entity';
 import { Role } from 'src/rol/enums/role.enum';
 import { Plans } from 'src/plan/enums/plan.enum';
-
 import { JwtService } from '@nestjs/jwt';
+import { DepartamentoService } from 'src/departamento/departamento.service';
+import { PositionService } from 'src/position/position.service';
+
 
 @Injectable()
 export class AuthService {
@@ -399,6 +401,8 @@ export class AuthService {
     private readonly rolesRepository: Repository<Rol>,
     private readonly clerkService: ClerkService,
     private readonly jwtService: JwtService,
+    private readonly departamentoService: DepartamentoService,
+    private readonly positionService: PositionService,
     private readonly dataSource: DataSource
   ) {}
 
@@ -497,6 +501,9 @@ export class AuthService {
         newUser.updated_at = currentDate;
 
         await manager.save(User, newUser);
+        await this.departamentoService.seeder(savedCompany.id, manager);
+await this.positionService.seeder(savedCompany.id, manager);
+
 
         return {
           message: 'Register successfully.'
