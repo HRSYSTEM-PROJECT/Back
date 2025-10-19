@@ -12,6 +12,8 @@ import {
 import { Employee } from 'src/empleado/entities/empleado.entity';
 import { User } from 'src/user/entities/user.entity';
 import { Suscripcion } from 'src/suscripcion/entities/suscripcion.entity';
+import { Departamento } from 'src/departamento/entities/departamento.entity';
+import { Position } from 'src/position/entities/position.entity';
 
 @Entity('companies')
 export class Company {
@@ -72,4 +74,12 @@ export class Company {
   @OneToOne(() => Suscripcion, (suscripcion) => suscripcion.company)
   @JoinColumn({ name: 'current_subscription_id' })
   suscripciones: Suscripcion;
+
+  @OneToMany(() => Departamento, (departamento) => departamento.company)
+departamentos: Departamento[];
+
+@OneToMany(() => Position, (position) => position.company)
+positions: Position[];
+
+
 }

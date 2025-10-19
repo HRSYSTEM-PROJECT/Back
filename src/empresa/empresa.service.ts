@@ -5,23 +5,45 @@ import { Repository } from 'typeorm';
 import { Company } from './entities/empresa.entity';
 import { CreateCompanyDto } from './dto/create-empresa.dto';
 import { UpdateCompanyDto } from './dto/update-empresa.dto';
+import { DepartamentoService } from 'src/departamento/departamento.service';
+import { PositionService } from 'src/position/position.service';
+
 
 @Injectable()
 export class EmpresaService {
   constructor(
     @InjectRepository(Company)
-    private readonly companyRepository: Repository<Company>
+    private readonly companyRepository: Repository<Company>,
+    private readonly departamentoService: DepartamentoService,
+    private readonly positionService: PositionService
   ) {}
 
-  async create(createCompanyDto: CreateCompanyDto): Promise<Company> {
+  // async create(createCompanyDto: CreateCompanyDto): Promise<Company> {
     
-    const company = this.companyRepository.create({
-      ...createCompanyDto,
-      phone_number: createCompanyDto.phone_number?.toString(), // conversión explícita
-      logo: createCompanyDto.logo // mapeo de nombre
-    });
-    return this.companyRepository.save(company);
-  }
+  //   const company = this.companyRepository.create({
+  //     ...createCompanyDto,
+  //     phone_number: createCompanyDto.phone_number?.toString(), // conversión explícita
+  //     logo: createCompanyDto.logo // mapeo de nombre
+  //   });
+  //   return this.companyRepository.save(company);
+  // }
+  //refactor para agregar seeder de company y position
+  async create(createCompanyDto: CreateCompanyDto): Promise<Company> {
+  const company = this.companyRepository.create({
+    ...createCompanyDto,
+    phone_number: createCompanyDto.phone_number?.toString(),
+    logo: createCompanyDto.logo
+  });
+
+  const savedCompany = await this.companyRepository.save(company);
+
+  // Ejecutar seeders para esta empresa
+  await this.departamentoService.seeder(savedCompany.id);
+  await this.positionService.seeder(savedCompany.id);
+
+  return savedCompany;
+}
+
 
   async findAll(): Promise<Company[]> {
     return this.companyRepository.find();
