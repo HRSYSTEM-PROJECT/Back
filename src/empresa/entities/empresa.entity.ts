@@ -24,7 +24,7 @@ export class Company {
   stripe_customer_id: string;
 
   @Column({ nullable: true })
-  country: string;
+  country?: string;
 
   @Column()
   trade_name: string;
