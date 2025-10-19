@@ -5,8 +5,8 @@ import { Repository } from 'typeorm';
 import { Company } from './entities/empresa.entity';
 import { CreateCompanyDto } from './dto/create-empresa.dto';
 import { UpdateCompanyDto } from './dto/update-empresa.dto';
-import { DepartamentoService } from 'src/departamento/departamento.service';
-import { PositionService } from 'src/position/position.service';
+import { DepartamentoService } from '../departamento/departamento.service';
+import { PositionService } from '../position/position.service';
 
 @Injectable()
 export class EmpresaService {
