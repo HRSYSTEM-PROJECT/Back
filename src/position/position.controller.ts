@@ -179,7 +179,8 @@ import {
   Body,
   Patch,
   Param,
-  Delete
+  Delete,
+  UseGuards
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -193,8 +194,10 @@ import { CreatePositionDto } from './dto/create-position.dto';
 import { UpdatePositionDto } from './dto/update-position.dto';
 import { AuthUser } from 'src/decoradores/auth-user.decoratos';
 import type { AuthenticatedUser } from 'src/interfaces/authenticated-user.interface';
+import { ClerkAuthGuard } from 'src/auth/guards/clerk.guard';
 
 @ApiTags('Position')
+@UseGuards(ClerkAuthGuard)
 @Controller('position')
 export class PositionController {
   constructor(private readonly positionService: PositionService) {}
