@@ -17,31 +17,16 @@ export class EmpresaService {
     private readonly positionService: PositionService
   ) {}
 
-  // async create(createCompanyDto: CreateCompanyDto): Promise<Company> {
-    
-  //   const company = this.companyRepository.create({
-  //     ...createCompanyDto,
-  //     phone_number: createCompanyDto.phone_number?.toString(), // conversión explícita
-  //     logo: createCompanyDto.logo // mapeo de nombre
-  //   });
-  //   return this.companyRepository.save(company);
-  // }
-  //refactor para agregar seeder de company y position
   async create(createCompanyDto: CreateCompanyDto): Promise<Company> {
-  const company = this.companyRepository.create({
-    ...createCompanyDto,
-    phone_number: createCompanyDto.phone_number?.toString(),
-    logo: createCompanyDto.logo
-  });
-
-  const savedCompany = await this.companyRepository.save(company);
-
-  // Ejecutar seeders para esta empresa
-  await this.departamentoService.seeder(savedCompany.id);
-  await this.positionService.seeder(savedCompany.id);
-
-  return savedCompany;
-}
+    
+    const company = this.companyRepository.create({
+      ...createCompanyDto,
+      phone_number: createCompanyDto.phone_number?.toString(), // conversión explícita
+      logo: createCompanyDto.logo // mapeo de nombre
+    });
+    return this.companyRepository.save(company);
+  }
+  
 
 
   async findAll(): Promise<Company[]> {
