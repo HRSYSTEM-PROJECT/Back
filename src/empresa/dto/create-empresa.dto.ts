@@ -29,7 +29,7 @@ export class CreateCompanyDto {
   //@IsNotEmpty()
    @IsOptional()
   @MaxLength(100)
-  country: string;
+  country?: string;
 
   @ApiProperty({
     example: 'Tech Solutions S.A.',
