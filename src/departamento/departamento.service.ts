@@ -63,7 +63,7 @@
 //Refactor para multiempresa(se filtra todo por empresaId)
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { Departamento } from './entities/departamento.entity';
 import { CreateDepartamentoDto } from './dto/create-departamento.dto';
 import { UpdateDepartamentoDto } from './dto/update-departamento.dto';
@@ -76,9 +76,10 @@ export class DepartamentoService {
     private readonly departamentoRepository: Repository<Departamento>
   ) {}
 
-  async create(dto: CreateDepartamentoDto, companyId: string): Promise<Departamento> {
-    const departamento = this.departamentoRepository.create({ ...dto, companyId });
-    return await this.departamentoRepository.save(departamento);
+  async create(dto: CreateDepartamentoDto, companyId: string, manager?: EntityManager): Promise<Departamento> {
+    const repo = manager ? manager.getRepository(Departamento) : this.departamentoRepository;
+    const departamento = repo.create({ ...dto, companyId });
+    return await repo.save(departamento);
   }
 
   async findAll(companyId: string): Promise<Departamento[]> {
@@ -88,19 +89,21 @@ export class DepartamentoService {
     });
   }
 
-  async seeder(companyId: string) {
-    const existentes = await this.departamentoRepository.find({ where: { companyId } });
+  async seeder(companyId: string, manager?: EntityManager) {
+  const repo = manager ? manager.getRepository(Departamento) : this.departamentoRepository;
+  const existentes = await repo.find({ where: { companyId } });
 
-    const nuevos = departments_data
-      .filter((d) => !existentes.some((e) => e.nombre === d.nombre))
-      .map((d) => ({ ...d, companyId }));
+  const nuevos = departments_data
+    .filter((d) => !existentes.some((e) => e.nombre === d.nombre))
+    .map((d) => ({ ...d, companyId }));
 
-    if (nuevos.length > 0) {
-      await this.departamentoRepository.save(nuevos);
-    }
-
-    return { message: 'Departamentos cargados para la empresa.' };
+  if (nuevos.length > 0) {
+    await repo.save(nuevos);
   }
+
+  return { message: 'Departamentos cargados para la empresa.' };
+}
+
 
   async findOne(id: string, companyId: string): Promise<Departamento> {
     const departamento = await this.departamentoRepository.findOne({

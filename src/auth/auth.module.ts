@@ -9,11 +9,13 @@ import { Suscripcion } from 'src/suscripcion/entities/suscripcion.entity';
 import { Rol } from 'src/rol/entities/rol.entity';
 import { ClerkService } from './clerk.service';
 import { UserModule } from 'src/user/user.module';
+import { DepartamentoModule } from '../departamento/departamento.module';
+import { PositionModule } from 'src/position/position.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Company, Plan, Suscripcion, Rol]),
-    UserModule
+    UserModule, DepartamentoModule, PositionModule
   ],
   controllers: [AuthController],
   providers: [AuthService, ClerkService],

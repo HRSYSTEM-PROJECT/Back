@@ -84,7 +84,7 @@
 //refactor multiempresa
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { CreatePositionDto } from './dto/create-position.dto';
 import { UpdatePositionDto } from './dto/update-position.dto';
 import { PositionResponseDto } from './dto/position-response.dto';
@@ -98,16 +98,10 @@ export class PositionService {
     private readonly positionRepository: Repository<Position>
   ) {}
 
-  async create(
-    createPositionDto: CreatePositionDto,
-    empresaId: string
-  ): Promise<PositionResponseDto> {
-    const position = this.positionRepository.create({
-      ...createPositionDto,
-      empresaId
-    });
-
-    const savedPosition = await this.positionRepository.save(position);
+  async create(createPositionDto: CreatePositionDto, empresaId: string, manager?: EntityManager): Promise<PositionResponseDto> {
+    const repo = manager ? manager.getRepository(Position) : this.positionRepository;
+    const position = repo.create({ ...createPositionDto, empresaId });
+    const savedPosition = await repo.save(position);
 
     return {
       id: savedPosition.id,
@@ -133,15 +127,16 @@ export class PositionService {
     }));
   }
 
-  async seeder(empresaId: string) {
-    const existentes = await this.positionRepository.find({ where: { empresaId } });
+  async seeder(empresaId: string, manager?: EntityManager) {
+    const repo = manager? manager.getRepository(Position): this.positionRepository;
+    const existentes = await repo.find({ where: { empresaId } });
 
     const nuevos = positions_data
       .filter((p) => !existentes.some((e) => e.name === p.name))
       .map((p) => ({ ...p, empresaId }));
 
     if (nuevos.length > 0) {
-      await this.positionRepository.save(nuevos);
+      await repo.save(nuevos);
     }
 
     return { message: 'Puestos cargados para la empresa.' };
@@ -165,11 +160,7 @@ export class PositionService {
     };
   }
 
-  async update(
-    id: string,
-    updatePositionDto: UpdatePositionDto,
-    empresaId: string
-  ): Promise<PositionResponseDto> {
+  async update(id: string, updatePositionDto: UpdatePositionDto, empresaId: string): Promise<PositionResponseDto> {
     const position = await this.findOne(id, empresaId);
     await this.positionRepository.update(id, updatePositionDto);
     return this.findOne(id, empresaId);
