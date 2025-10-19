@@ -4,9 +4,10 @@ import { Company } from './entities/empresa.entity';
 import { EmpresaService } from './empresa.service';
 import { EmpresaController } from './empresa.controller';
 import { DepartamentoModule } from 'src/departamento/departamento.module';
+import { PositionModule } from 'src/position/position.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Company, DepartamentoModule])],
+  imports: [TypeOrmModule.forFeature([Company, DepartamentoModule, PositionModule])],
   controllers: [EmpresaController],
   providers: [EmpresaService]
 })

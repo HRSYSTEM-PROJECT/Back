@@ -8,7 +8,6 @@ import { UpdateCompanyDto } from './dto/update-empresa.dto';
 import { DepartamentoService } from 'src/departamento/departamento.service';
 import { PositionService } from 'src/position/position.service';
 
-
 @Injectable()
 export class EmpresaService {
   constructor(
