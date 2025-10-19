@@ -178,15 +178,18 @@ import { Controller,
   Body,
   Patch,
   Param,
-  Delete } from '@nestjs/common';
+  Delete, 
+  UseGuards} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { DepartamentoService } from './departamento.service';
 import { CreateDepartamentoDto } from './dto/create-departamento.dto';
 import { UpdateDepartamentoDto } from './dto/update-departamento.dto';
 import { AuthUser } from 'src/decoradores/auth-user.decoratos';
 import type { AuthenticatedUser } from 'src/interfaces/authenticated-user.interface';
+import { ClerkAuthGuard } from 'src/auth/guards/clerk.guard';
 
 @ApiTags('Departamento')
+@UseGuards(ClerkAuthGuard)
 @Controller('departamento')
 export class DepartamentoController {
   constructor(private readonly departamentoService: DepartamentoService) {}
