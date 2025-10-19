@@ -26,7 +26,8 @@ export class CreateCompanyDto {
     maxLength: 100
   })
   @IsString()
-  @IsNotEmpty()
+  //@IsNotEmpty()
+   @IsOptional()
   @MaxLength(100)
   country: string;
 
