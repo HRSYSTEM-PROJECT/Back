@@ -45,9 +45,14 @@ export class WebhookService {
     }
 
     switch (event.type) {
-      /**
-       * ✅ Ocurre cuando el checkout se completa exitosamente.
-       */
+      //------------Evita hacer llamadas inecesarias a la DB-----------//
+      case 'customer.subscription.created':
+        console.log(
+          'Evento ignorado intencionalmente (Stripe lo crea automáticamente)'
+        );
+        break;
+
+      //------------Cuando el pago se completa con éxtito-----------//
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
 
@@ -67,13 +72,13 @@ export class WebhookService {
           }
         );
 
-        // Finalizar la suscripción activa (FREE)
-        await this.suscripcionService.endActiveSubscriptionForCompany(
-          companyId,
-          new Date()
-        );
+        // // Finalizar la suscripción activa (FREE)
+        // await this.suscripcionService.endActiveSubscriptionForCompany(
+        //   companyId,
+        //   new Date()
+        // );
 
-        // Buscar el plan correspondiente en tu DB
+        // Buscar el plan correspondiente en la DB
         let plan: Plan | null = null;
         const priceId = subscription.items.data[0]?.price?.id;
         if (priceId) {
@@ -107,9 +112,8 @@ export class WebhookService {
           endDate.setDate(startDate.getDate() + (plan?.duration_days ?? 30));
         }
 
-        // Crear nueva suscripción en la base de datos
-        const newSub = await this.suscripcionService.createFromStripe({
-          companyId,
+        // Actualizar la suscripcion existente en la base de datos con los datos de Stripe
+        await this.suscripcionService.updateFromStripe(companyId, {
           planId: plan.id,
           startDate,
           endDate,
@@ -118,35 +122,24 @@ export class WebhookService {
           stripe_customer_id: subscription.customer as string,
           status: subscription.status
         });
-        // Actualizar la referencia 1:1 de la empresa a la nueva suscripción
-        const company = await this.companiesRepository.findOne({
-          where: { id: companyId },
-          relations: ['suscripciones']
-        });
-
-        if (company) {
-          company.suscripciones = newSub;
-          await this.companiesRepository.save(company);
-        }
 
         break;
       }
 
-      case 'customer.subscription.created':
-        console.log(
-          'Evento ignorado intencionalmente (Stripe lo crea automáticamente)'
-        );
-        break;
-      /**
-       * ✅ Ocurre cuando Stripe actualiza una suscripción (cambio de plan, cancelación, etc.)
-       */
+      //------------Cuando Stripe Actualiza una Suscripcion (Cambio de fechas, plan)-----------//
       case 'customer.subscription.updated':
-      case 'invoice.payment_succeeded':
-      case 'customer.subscription.deleted': {
+      case 'invoice.payment_succeeded': {
         const subscription = event.data.object as Stripe.Subscription;
         await this.suscripcionService.handleStripeSubscriptionUpdate(
           subscription
         );
+        break;
+      }
+
+      //------------Cuando se cancela una Suscripción-----------//
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription;
+        await this.suscripcionService.handleStripeCancellation(subscription);
         break;
       }
 

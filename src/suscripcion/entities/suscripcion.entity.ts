@@ -21,14 +21,14 @@ export class Suscripcion {
   end_date: Date;
 
   // NUEVOS CAMPOS:
-  @Column({ nullable: true })
-  stripe_subscription_id: string;
+  @Column({ type: 'varchar', nullable: true })
+  stripe_subscription_id: string | null;
 
-  @Column({ nullable: true })
-  stripe_price_id: string;
+  @Column({ type: 'varchar', nullable: true })
+  stripe_price_id: string | null;
 
-  @Column({ nullable: true })
-  stripe_customer_id: string;
+  @Column({ type: 'varchar', nullable: true })
+  stripe_customer_id: string | null;
 
   @Column({ nullable: true })
   status: string; // active | canceled | incomplete | trialing etc.
