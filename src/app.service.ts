@@ -31,25 +31,26 @@ export class AppService implements OnApplicationBootstrap {
       console.log(`Roles precargados exitosamente`);
 
       // Llamada a departamento/seeder
-      console.log(`Precargando departamentos...`);
-      await this.departmentService.seeder();
-      console.log(`Departamentos precargados exitosamente`);
+  //     console.log(`Precargando departamentos...`);
+  //     await this.departmentService.seeder();
+  //     console.log(`Departamentos precargados exitosamente`);
 
-      // Llamada a position/seeder
-      console.log(`Precargando posiciones de empleados...`);
-      await this.positionService.seeder();
-      console.log(`Posiciones de empleados precargados exitosamente`);
-    } catch (error) {
-      console.error(
-        'Una de las llamadas falló. La siguiente llamada no se ejecutó si la anterior falló.',
-        error
-      );
+  //     // Llamada a position/seeder
+  //     console.log(`Precargando posiciones de empleados...`);
+  //     await this.positionService.seeder();
+  //     console.log(`Posiciones de empleados precargados exitosamente`);
+     } catch (error) {
+       console.error(
+         'Una de las llamadas falló. La siguiente llamada no se ejecutó si la anterior falló.',
+         error
+       );
+     }
+   
     }
-  }
-
   //-------------Mensaje de Bienvenida-------------//
 
   getHello(): string {
     return 'BIENVENIDOS A HR SYSTEM';
   }
 }
+
