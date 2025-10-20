@@ -847,17 +847,16 @@ export class NotificationsService {
     date: Date
   ): Promise<{ isHoliday: boolean; name?: string }> {
     try {
-      // Usar una API gratuita de feriados (ejemplo: holidayapi.com o similar)
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
+      const dateString = `${year}-${month}-${day}`;
 
-      // URL de ejemplo para una API de feriados (reemplazar con API real)
-      const apiUrl = `https://date.nager.at/api/v3/IsPublicHoliday/${year}-${month}-${day}/${countryCode}`;
+      // Usar calendarific.com que soporta Guatemala y muchos más países
+      const apiUrl = `https://calendarific.com/api/v2/holidays?api_key=YOUR_API_KEY&country=${countryCode}&year=${year}&month=${month}&day=${day}`;
 
-      // Agregar timeout y mejor manejo de errores
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
       const response = await fetch(apiUrl, {
         signal: controller.signal,
@@ -869,65 +868,33 @@ export class NotificationsService {
 
       clearTimeout(timeoutId);
 
-      // Verificar status de respuesta
       if (!response.ok) {
         this.logger.warn(
-          `⚠️ API de feriados respondió con status ${response.status}`
+          `⚠️ API de feriados respondió con status ${response.status} para ${countryCode}`
         );
         return { isHoliday: false };
       }
 
-      // Verificar si la respuesta tiene contenido
       const responseText = await response.text();
       if (!responseText || responseText.trim() === '') {
         this.logger.warn(`⚠️ API de feriados devolvió respuesta vacía`);
         return { isHoliday: false };
       }
 
-      const isHoliday = JSON.parse(responseText);
-
-      if (isHoliday) {
-        // Si es feriado, obtener el nombre del feriado
-        const holidayInfoUrl = `https://date.nager.at/api/v3/PublicHolidays/${year}/${countryCode}`;
-        try {
-          const holidayResponse = await fetch(holidayInfoUrl, {
-            signal: controller.signal,
-            headers: {
-              Accept: 'application/json',
-              'User-Agent': 'HR-System/1.0'
-            }
-          });
-
-          if (holidayResponse.ok) {
-            const holidays = await holidayResponse.json();
-
-            const holiday = holidays.find((h: any) => {
-              const holidayDate = new Date(h.date);
-              return (
-                holidayDate.getDate() === date.getDate() &&
-                holidayDate.getMonth() === date.getMonth()
-              );
-            });
-
-            return {
-              isHoliday: true,
-              name: holiday ? holiday.name : 'Feriado'
-            };
-          }
-        } catch (holidayError) {
-          this.logger.warn(
-            `⚠️ Error obteniendo nombre del feriado: ${holidayError.message}`
-          );
-        }
-
+      const data = JSON.parse(responseText);
+      
+      // Verificar si hay feriados en la respuesta
+      if (data.response && data.response.holidays && data.response.holidays.length > 0) {
+        const holiday = data.response.holidays[0];
+        this.logger.log(`🎊 Feriado detectado: ${holiday.name} en ${countryCode}`);
         return {
           isHoliday: true,
-          name: 'Feriado'
+          name: holiday.name
         };
       }
 
       return { isHoliday: false };
-    } catch (error) {
+    } catch (error: any) {
       if (error.name === 'AbortError') {
         this.logger.warn(
           `⚠️ Timeout consultando API de feriados para ${countryCode}`
@@ -937,8 +904,6 @@ export class NotificationsService {
           `❌ Error consultando API de feriados: ${error.message}`
         );
       }
-
-      // Si la API falla, asumir que no es feriado para evitar notificaciones incorrectas
       return { isHoliday: false };
     }
   }
