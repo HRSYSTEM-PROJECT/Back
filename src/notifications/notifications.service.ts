@@ -170,7 +170,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Ejecutar notificaciones programadas
-  @Cron('* * * * *') // Cada minuto
+  @Cron('*/15 * * * *') // Cada 15 minutos
   async executeScheduledNotifications() {
     const cronName = 'executeScheduledNotifications';
     this.logger.log(
