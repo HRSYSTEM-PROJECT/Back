@@ -241,7 +241,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Recordatorio de cumpleaños
-  @Cron('0 8 * * *') // Todos los días a las 8:00 AM
+  @Cron('*/15 * * * *') // Cada 15 minutos
   async checkBirthdays() {
     const cronName = 'checkBirthdays';
     this.logger.log('🎂 Verificando cumpleaños de empleados...');
