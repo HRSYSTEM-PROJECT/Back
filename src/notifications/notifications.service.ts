@@ -278,14 +278,13 @@ export class NotificationsService {
     this.logger.log('🎊 Verificando feriados...');
 
     try {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      const today = new Date();
 
       // Obtener todas las empresas con sus configuraciones
       const companies = await this.companyRepository.find();
 
       for (const company of companies) {
-        await this.checkCompanyHolidays(company, tomorrow);
+        await this.checkCompanyHolidays(company, today);
       }
 
       this.updateCronStatus(cronName, 'success');
@@ -474,10 +473,10 @@ export class NotificationsService {
     scheduledNotification.message = message;
     scheduledNotification.recipient_type = recipientType;
     scheduledNotification.recipient_emails = recipientEmails
-        ? JSON.stringify(recipientEmails)
+      ? JSON.stringify(recipientEmails)
       : null;
     scheduledNotification.recipient_employee_ids = recipientEmployeeIds
-        ? JSON.stringify(recipientEmployeeIds)
+      ? JSON.stringify(recipientEmployeeIds)
       : null;
     scheduledNotification.scheduled_date = scheduledDate;
     scheduledNotification.is_executed = false;
@@ -750,15 +749,15 @@ export class NotificationsService {
           employeeSubject,
           'birthday_employee',
           {
-        company,
+            company,
             employee,
             isEmployee: true
           }
         );
-      this.logger.log(
+        this.logger.log(
           `📧 Email de felicitación enviado al empleado ${employee.first_name} ${employee.last_name}`
-      );
-    } catch (error) {
+        );
+      } catch (error) {
         this.logger.error(`❌ Error enviando email al empleado:`, error);
       }
     }
@@ -900,19 +899,19 @@ export class NotificationsService {
           });
 
           if (holidayResponse.ok) {
-        const holidays = await holidayResponse.json();
+            const holidays = await holidayResponse.json();
 
-        const holiday = holidays.find((h: any) => {
-          const holidayDate = new Date(h.date);
-          return (
-            holidayDate.getDate() === date.getDate() &&
-            holidayDate.getMonth() === date.getMonth()
-          );
-        });
+            const holiday = holidays.find((h: any) => {
+              const holidayDate = new Date(h.date);
+              return (
+                holidayDate.getDate() === date.getDate() &&
+                holidayDate.getMonth() === date.getMonth()
+              );
+            });
 
-        return {
-          isHoliday: true,
-          name: holiday ? holiday.name : 'Feriado'
+            return {
+              isHoliday: true,
+              name: holiday ? holiday.name : 'Feriado'
             };
           }
         } catch (holidayError) {
@@ -934,9 +933,9 @@ export class NotificationsService {
           `⚠️ Timeout consultando API de feriados para ${countryCode}`
         );
       } else {
-      this.logger.error(
-        `❌ Error consultando API de feriados: ${error.message}`
-      );
+        this.logger.error(
+          `❌ Error consultando API de feriados: ${error.message}`
+        );
       }
 
       // Si la API falla, asumir que no es feriado para evitar notificaciones incorrectas
@@ -1203,38 +1202,15 @@ export class NotificationsService {
     `;
   }
 
-  // Template para cumpleaños (genérico)
-  private getBirthdayTemplate(data: any): string {
-    return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #e91e63;">🎉 ¡Feliz Cumpleaños!</h2>
-        <p>Hola <strong>${data.company.legal_name}</strong>,</p>
-        <p>¡Hoy es el cumpleaños de <strong>${data.employee.first_name} ${data.employee.last_name}</strong>! 🎂</p>
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <h3>🎁 Detalles del empleado:</h3>
-          <ul>
-            <li><strong>Nombre:</strong> ${data.employee.first_name} ${data.employee.last_name}</li>
-            <li><strong>Email:</strong> ${data.employee.email}</li>
-            <li><strong>Fecha de nacimiento:</strong> ${data.employee.birthdate?.toLocaleDateString?.() || 'N/A'}</li>
-          </ul>
-        </div>
-        <p>¡No olvides felicitarlo y hacer que se sienta especial en su día! 🎈</p>
-        <p>Saludos,<br>Equipo HR System</p>
-      </div>
-    `;
-  }
-
   // Template para cumpleaños del EMPLEADO (felicitación personal)
   private getBirthdayEmployeeTemplate(data: any): string {
     return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; text-align: center;">
-        <h2 style="color: #e91e63; font-size: 28px;">🎉 ¡Feliz Cumpleaños ${data.employee.first_name}! 🎂</h2>
-        <div style="background: linear-gradient(135deg, #ff6b6b, #feca57); padding: 30px; border-radius: 15px; margin: 20px 0; color: white;">
-          <h3 style="margin: 0; font-size: 24px;">¡Que tengas un día maravilloso!</h3>
-          <p style="font-size: 18px; margin: 15px 0;">Te desea <strong>${data.company.legal_name}</strong></p>
-        </div>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #e91e63;">🎉 ¡Feliz Cumpleaños ${data.employee.first_name}!</h2>
+        <p>¡Que tengas un día maravilloso!</p>
+        <p>Te desea <strong>${data.company.legal_name}</strong></p>
         <p style="font-size: 16px; color: #666;">¡Esperamos que disfrutes mucho tu día especial! 🎈</p>
-        <p style="color: #999; font-size: 14px;">Saludos</p>
+        <p>Saludos</p>
       </div>
     `;
   }
@@ -1246,15 +1222,6 @@ export class NotificationsService {
         <h2 style="color: #2c3e50;">🎂 Recordatorio de Cumpleaños</h2>
         <p>Hola <strong>${data.company.legal_name}</strong>,</p>
         <p>Ya enviamos un email saludando a <strong>${data.employee.first_name} ${data.employee.last_name}</strong>, para que en su día se sienta especial.</p>
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #e91e63;">
-          <h3>👤 Detalles del empleado:</h3>
-          <ul style="margin: 10px 0;">
-            <li><strong>Nombre:</strong> ${data.employee.first_name} ${data.employee.last_name}</li>
-            <li><strong>Email:</strong> ${data.employee.email || 'No disponible'}</li>
-            <li><strong>Fecha de nacimiento:</strong> ${data.employee.birthdate?.toLocaleDateString?.() || 'N/A'}</li>
-          </ul>
-        </div>
-        <p>Ya enviamos un email saludando a <strong>${data.employee.first_name}</strong>, para que en su día se sienta especial.</p>
         <p>Saludos,<br>Equipo HR System</p>
       </div>
     `;
@@ -1266,13 +1233,11 @@ export class NotificationsService {
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #f39c12;">🎊 Recordatorio de Feriado</h2>
         <p>Hola <strong>${data.company.legal_name}</strong>,</p>
-        <p>Te recordamos que <strong>mañana es feriado</strong>: <strong>${data.holiday.name}</strong></p>
+        <p>Te recordamos que <strong>Hoy es feriado</strong>: <strong>${data.holiday.name}</strong></p>
         <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
           <h3>📅 Información del feriado:</h3>
           <ul>
-            <li><strong>Fecha:</strong> ${data.date.toLocaleDateString()}</li>
-            <li><strong>Feriado:</strong> ${data.holiday.name}</li>
-            <li><strong>País:</strong> ${data.countryCode}</li>
+            <li>${data.holiday.name}</li>
           </ul>
         </div>
         <p>¡Que tengas un excelente día libre! 🎉</p>
