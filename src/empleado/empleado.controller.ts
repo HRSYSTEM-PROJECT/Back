@@ -72,6 +72,16 @@ export class EmpleadoController {
       }
     })
   )
+  @UseInterceptors(FileInterceptor('file', {
+    storage: memoryStorage(),
+   limits: { fileSize: 500 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+        return cb(new Error('Solo se permiten imágenes'), false);
+      }
+      cb(null, true);
+    },
+  }))
   async create(
     @Req() req: AuthRequest,
     @Body() dto: CreateEmployeeDto,
@@ -152,17 +162,36 @@ export class EmpleadoController {
     description:
       'Devuelve las ausencias de un empleado según mes y año (opcional).'
   })
+  // async getAusenciasByEmpleado(
+  //   @Param('id') employeeId: string,
+  //   @Req() req: AuthRequest,
+  //   @Query('month') month?: number,
+  //   @Query('year') year?: number
+  // ) {
+  //   return this.empleadoService.getAusenciasByEmpleado(
+  //     employeeId,
+  //     req.user,
+  //     month,
+  //     year
+  //   );
+  // }
+
   async getAusenciasByEmpleado(
-    @Param('id') employeeId: string,
-    @Req() req: AuthRequest,
-    @Query('month') month?: number,
-    @Query('year') year?: number
-  ) {
-    return this.empleadoService.getAusenciasByEmpleado(
-      employeeId,
-      req.user,
-      month,
-      year
-    );
-  }
+  @Param('id') employeeId: string,
+  @Req() req: AuthRequest,
+  @Query('month') month?: number,
+  @Query('year') year?: number,
+  @Query('page') page?: number,
+  @Query('limit') limit?: number
+) {
+  return this.empleadoService.getAusenciasByEmpleado(
+    employeeId,
+    req.user,
+    month ? Number(month) : undefined,
+    year ? Number(year) : undefined,
+    page ? Number(page) : 1,
+    limit ? Number(limit) : 10
+  );
+}
+
 }
