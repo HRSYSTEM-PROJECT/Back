@@ -31,8 +31,6 @@ import { memoryStorage } from 'multer';
 import { UseInterceptors } from '@nestjs/common';
 import { UploadedFile } from '@nestjs/common';
 
-
-
 @ApiTags('Empleado')
 @UseGuards(ClerkAuthGuard) // 👈 aplica el guard a TODO el controller
 @Controller('empleado')
@@ -54,23 +52,26 @@ export class EmpleadoController {
   //   return this.empleadoService.create(dto, req.user);
   // }
 
-  // @Post()
+  @Post()
   @ApiOperation({
     summary: 'Crear nuevo empleado',
-    description: 'Registra un nuevo empleado en el sistema. La empresa se obtiene automáticamente del usuario autenticado.'
+    description:
+      'Registra un nuevo empleado en el sistema. La empresa se obtiene automáticamente del usuario autenticado.'
   })
   @ApiBody({ type: CreateEmployeeDto })
   @ApiResponse({ status: 201, description: 'Empleado creado exitosamente' })
-  @UseInterceptors(FileInterceptor('file', {
-    storage: memoryStorage(),
-    limits: { fileSize: 5 * 1024 * 1024 },
-    fileFilter: (req, file, cb) => {
-      if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
-        return cb(new Error('Solo se permiten imágenes'), false);
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (req, file, cb) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+          return cb(new Error('Solo se permiten imágenes'), false);
+        }
+        cb(null, true);
       }
-      cb(null, true);
-    },
-  }))
+    })
+  )
   async create(
     @Req() req: AuthRequest,
     @Body() dto: CreateEmployeeDto,
@@ -78,7 +79,6 @@ export class EmpleadoController {
   ) {
     return this.empleadoService.create(dto, req.user, file);
   }
-
 
   // ✅ Obtener todos los empleados
   @Get()
