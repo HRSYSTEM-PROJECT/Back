@@ -10,10 +10,11 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { UserModule } from '../user/user.module';
 import { ClerkAuthGuard } from 'src/auth/guards/clerk.guard';
 import { UploadModule } from 'src/upload/upload.module';
+import { Absence } from 'src/absence/entities/absence.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Employee, Departamento, Position, Company]),
+    TypeOrmModule.forFeature([Employee, Departamento, Position, Company, Absence]),
     NotificationsModule,
     UserModule,
     UploadModule

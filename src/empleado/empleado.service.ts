@@ -17,6 +17,7 @@ import { Company } from 'src/empresa/entities/empresa.entity';
 //import { User } from 'src/user/entities/user.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UploadService } from '../upload/upload.service';
+import { MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 
 @Injectable()
 export class EmpleadoService {
@@ -30,7 +31,9 @@ export class EmpleadoService {
     @InjectRepository(Position)
     private readonly positionsRepository: Repository<Position>,
     private readonly notificationsService: NotificationsService,
-    private readonly uploadService: UploadService
+    private readonly uploadService: UploadService,
+    @InjectRepository(Absence)
+    private readonly absenceRepository: Repository<Absence>
   ) {}
 
   private calculateAge(birthdate: Date): number {
@@ -235,31 +238,73 @@ export class EmpleadoService {
   }
 
   // ---- Ausencias ----
-  async getAusenciasByEmpleado(
+  // async getAusenciasByEmpleado(
+  //   employeeId: string,
+  //   user: AuthenticatedUser,
+  //   month?: number,
+  //   year?: number
+  // ): Promise<Absence[]> {
+  //   const empleado = await this.employeeRepository.findOne({
+  //     where: { id: employeeId, company: { id: user.companyId } },
+  //     relations: ['absences']
+  //   });
+
+  //   if (!empleado) {
+  //     throw new NotFoundException('Empleado no encontrado en tu empresa');
+  //   }
+
+  //   const now = new Date();
+  //   const targetMonth = month ?? now.getMonth() + 1;
+  //   const targetYear = year ?? now.getFullYear();
+
+  //   return empleado.absences.filter((ausencia) => {
+  //     const fecha = new Date(ausencia.start_date);
+  //     return (
+  //       fecha.getMonth() + 1 === targetMonth &&
+  //       fecha.getFullYear() === targetYear
+  //     );
+  //   });
+  // }
+
+   async getAusenciasByEmpleado(
     employeeId: string,
     user: AuthenticatedUser,
     month?: number,
-    year?: number
-  ): Promise<Absence[]> {
+    year?: number,
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{ data: Absence[]; total: number; page: number; limit: number }> {
+    // Fecha objetivo
+    const now = new Date();
+    const targetMonth = month ?? now.getMonth() + 1;
+    const targetYear = year ?? now.getFullYear();
+
+    // Inicio y fin del mes
+    const startOfMonth = new Date(targetYear, targetMonth - 1, 1, 0, 0, 0);
+    const endOfMonth = new Date(targetYear, targetMonth, 0, 23, 59, 59);
+
+    // Verificar que el empleado exista y pertenezca a la empresa
     const empleado = await this.employeeRepository.findOne({
       where: { id: employeeId, company: { id: user.companyId } },
-      relations: ['absences']
     });
 
     if (!empleado) {
       throw new NotFoundException('Empleado no encontrado en tu empresa');
     }
 
-    const now = new Date();
-    const targetMonth = month ?? now.getMonth() + 1;
-    const targetYear = year ?? now.getFullYear();
-
-    return empleado.absences.filter((ausencia) => {
-      const fecha = new Date(ausencia.start_date);
-      return (
-        fecha.getMonth() + 1 === targetMonth &&
-        fecha.getFullYear() === targetYear
-      );
+    // Query paginada considerando ausencias que cruzan meses
+    const [data, total] = await this.absenceRepository.findAndCount({
+      where: {
+        employee: { id: employeeId, company: { id: user.companyId } },
+        // Considera ausencias que empiezan o terminan dentro del mes
+        start_date: LessThanOrEqual(endOfMonth),
+        end_date: MoreThanOrEqual(startOfMonth),
+      },
+      order: { start_date: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
+
+    return { data, total, page, limit };
   }
 }
