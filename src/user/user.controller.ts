@@ -129,6 +129,7 @@ export class UserController {
     return this.userService.findOne(id);
   }
 
+  @UseGuards(ClerkAuthGuard)
   @Patch(':id')
   @ApiOperation({
     summary: 'Actualizar usuario',
@@ -166,6 +167,7 @@ export class UserController {
     return this.userService.update(id, updateUserDto);
   }
 
+  @UseGuards(ClerkAuthGuard)
   @Delete(':id')
   @ApiOperation({
     summary: 'Eliminar usuario',

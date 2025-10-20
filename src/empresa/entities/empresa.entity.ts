@@ -24,7 +24,7 @@ export class Company {
   stripe_customer_id: string;
 
   @Column({ nullable: true })
-  country?: string;
+  country: string;
 
   @Column()
   trade_name: string;
@@ -76,10 +76,8 @@ export class Company {
   suscripciones: Suscripcion;
 
   @OneToMany(() => Departamento, (departamento) => departamento.company)
-departamentos: Departamento[];
+  departamentos: Departamento[];
 
-@OneToMany(() => Position, (position) => position.company)
-positions: Position[];
-
-
+  @OneToMany(() => Position, (position) => position.company)
+  positions: Position[];
 }

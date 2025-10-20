@@ -1,7 +1,9 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
-  Injectable
+  Injectable,
+  InternalServerErrorException
 } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -30,7 +32,7 @@ export class UserService {
     private readonly clerkService: ClerkService
   ) {}
 
-  //-------Crear nuevo usuario--------/
+  //---------------Crear nuevo usuario---------------/
   async create(createUserDto: CreateUserDto, user: AuthenticatedUser) {
     //Validar email único
     const userFound = await this.userRepository.findOne({
@@ -160,11 +162,74 @@ export class UserService {
   }
 
   async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id } });
+
+    if (!user) {
+      throw new NotFoundException(`Usuario con ID "${id}" no encontrado.`);
+    }
+
+    if (!user.clerkId) {
+      //Si el usuario existe en tu DB pero no en Clerk (MUY raro)
+      console.warn(`Usuario ${id} no tiene un clerkId asociado.`);
+      throw new BadRequestException(
+        'Usuario no cuenta con un clerkId asociado'
+      );
+    }
+    // Preparar el payload de Clerk
+    const clerkPayload: Record<string, any> = {};
+
+    // Mapea los campos del DTO a los campos de Clerk
+    if (updateUserDto.email) {
+      clerkPayload.emailAddress = [updateUserDto.email];
+    }
+    if (updateUserDto.first_name) {
+      clerkPayload.firstName = updateUserDto.first_name;
+    }
+    if (updateUserDto.password) {
+      clerkPayload.password = updateUserDto.password;
+    }
+
+    // Actualizar Clerk solo si hay algo para actualizar
+    if (Object.keys(clerkPayload).length > 0) {
+      try {
+        await this.clerkService.updateUser(user.clerkId, clerkPayload);
+      } catch (error) {
+        console.error('Error al actualizar usuario en Clerk:', error);
+        // Lanza una excepción interna, ya que el fallo en Clerk es crítico para la autenticación
+        throw new InternalServerErrorException(
+          'Fallo al sincronizar la actualización de usuario con Clerk.'
+        );
+      }
+    }
+
+    //Actualizar en la DB
     await this.userRepository.update(id, updateUserDto);
     return this.findOne(id);
   }
 
   async remove(id: string): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { id } });
+
+    if (!user) {
+      throw new NotFoundException(`Usuario con ID "${id}" no encontrado.`);
+    }
+
+    if (!user.clerkId) {
+      //Si el usuario existe en tu DB pero no en Clerk (MUY raro)
+      console.warn(`Usuario ${id} no tiene un clerkId asociado.`);
+      throw new BadRequestException(
+        'Usuario no cuenta con un clerkId asociado'
+      );
+    }
+    try {
+      await this.clerkService.deleteUser(user.clerkId);
+    } catch (error) {
+      console.error('Error al eliminar usuario en Clerk:', error);
+      // Lanza una excepción interna, ya que el fallo en Clerk es crítico
+      throw new InternalServerErrorException(
+        'Fallo al eliminar el usuario de Clerk.'
+      );
+    }
     await this.userRepository.softDelete(id);
   }
 }

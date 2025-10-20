@@ -1,4 +1,13 @@
-import { Get, Controller, Post, Delete, Param, Body } from '@nestjs/common';
+import {
+  Get,
+  Controller,
+  Post,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
+  Req
+} from '@nestjs/common';
 import { Patch } from '@nestjs/common';
 import {
   ApiTags,
@@ -11,41 +20,43 @@ import { EmpresaService } from './empresa.service';
 import { CreateCompanyDto } from './dto/create-empresa.dto';
 import { UpdateCompanyDto } from './dto/update-empresa.dto';
 import { ParseUUIDPipe } from '@nestjs/common';
+import { ClerkAuthGuard } from 'src/auth/guards/clerk.guard';
+import type { AuthRequest } from 'src/interfaces/authrequest.interface';
 
 @ApiTags('Empresa - Gestión de Empresas')
 @Controller('empresa')
 export class EmpresaController {
   constructor(private readonly empresaService: EmpresaService) {}
 
-  @Post()
-  @ApiOperation({
-    summary: 'Crear nueva empresa',
-    description:
-      'Registra una nueva empresa en el sistema con sus datos comerciales y legales'
-  })
-  @ApiBody({
-    type: CreateCompanyDto,
-    description: 'Datos de la empresa a crear'
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Empresa creada exitosamente'
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Datos de entrada inválidos'
-  })
-  @ApiResponse({
-    status: 409,
-    description: 'La razón social ya está registrada'
-  })
-  @ApiResponse({
-    status: 500,
-    description: 'Error interno del servidor'
-  })
-  create(@Body() createEmpresaDto: CreateCompanyDto) {
-    return this.empresaService.create(createEmpresaDto);
-  }
+  // @Post()
+  // @ApiOperation({
+  //   summary: 'Crear nueva empresa',
+  //   description:
+  //     'Registra una nueva empresa en el sistema con sus datos comerciales y legales'
+  // })
+  // @ApiBody({
+  //   type: CreateCompanyDto,
+  //   description: 'Datos de la empresa a crear'
+  // })
+  // @ApiResponse({
+  //   status: 201,
+  //   description: 'Empresa creada exitosamente'
+  // })
+  // @ApiResponse({
+  //   status: 400,
+  //   description: 'Datos de entrada inválidos'
+  // })
+  // @ApiResponse({
+  //   status: 409,
+  //   description: 'La razón social ya está registrada'
+  // })
+  // @ApiResponse({
+  //   status: 500,
+  //   description: 'Error interno del servidor'
+  // })
+  // create(@Body() createEmpresaDto: CreateCompanyDto) {
+  //   return this.empresaService.create(createEmpresaDto);
+  // }
 
   @Get()
   @ApiOperation({
@@ -93,6 +104,7 @@ export class EmpresaController {
     return this.empresaService.findOne(id);
   }
 
+  @UseGuards(ClerkAuthGuard)
   @Patch(':id')
   @ApiOperation({
     summary: 'Actualizar empresa',
@@ -129,6 +141,7 @@ export class EmpresaController {
     return this.empresaService.update(id, updateCompanyDto);
   }
 
+  @UseGuards(ClerkAuthGuard)
   @Delete(':id')
   @ApiOperation({
     summary: 'Eliminar empresa',

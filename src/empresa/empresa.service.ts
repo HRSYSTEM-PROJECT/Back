@@ -17,17 +17,15 @@ export class EmpresaService {
     private readonly positionService: PositionService
   ) {}
 
-  async create(createCompanyDto: CreateCompanyDto): Promise<Company> {
-    
-    const company = this.companyRepository.create({
-      ...createCompanyDto,
-      phone_number: createCompanyDto.phone_number?.toString(), // conversión explícita
-      logo: createCompanyDto.logo // mapeo de nombre
-    });
-    return this.companyRepository.save(company);
-  }
-  
+  // async create(createCompanyDto: CreateCompanyDto): Promise<Company> {
 
+  //   const company = this.companyRepository.create({
+  //     ...createCompanyDto,
+  //     phone_number: createCompanyDto.phone_number?.toString(), // conversión explícita
+  //     logo: createCompanyDto.logo // mapeo de nombre
+  //   });
+  //   return this.companyRepository.save(company);
+  // }
 
   async findAll(): Promise<Company[]> {
     return this.companyRepository.find();
@@ -35,11 +33,15 @@ export class EmpresaService {
 
   async findOne(id: string): Promise<Company> {
     const company = await this.companyRepository.findOne({ where: { id } });
-    if (!company) throw new NotFoundException(`Empresa con ID ${id} no encontrada`);
+    if (!company)
+      throw new NotFoundException(`Empresa con ID ${id} no encontrada`);
     return company;
   }
 
-  async update(id: string, updateCompanyDto: UpdateCompanyDto): Promise<Company> {
+  async update(
+    id: string,
+    updateCompanyDto: UpdateCompanyDto
+  ): Promise<Company> {
     await this.companyRepository.update(id, {
       ...updateCompanyDto,
       phone_number: updateCompanyDto.phone_number?.toString(),
