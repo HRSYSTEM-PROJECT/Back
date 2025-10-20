@@ -732,9 +732,9 @@ export class NotificationsService {
     );
 
     // 2. Crear notificación en BD para el empleado (si tiene usuario asociado)
-    if (employee.user_id) {
+    if (employee.user) {
       await this.createNotification(
-        employee.user_id,
+        employee.user.id,
         '🎉 ¡Feliz cumpleaños!',
         `¡Feliz cumpleaños ${employee.first_name}! Que tengas un día maravilloso.`,
         'birthday_reminder' as NotificationType
@@ -744,10 +744,15 @@ export class NotificationsService {
     // 3. Enviar email a la empresa
     const companySubject = `🎉 ¡Hoy es el Cumpleaños de: ${employee.first_name}!`;
     try {
-      await this.sendNotificationEmail(company.email, companySubject, 'birthday', {
-        company,
-        employee
-      });
+      await this.sendNotificationEmail(
+        company.email,
+        companySubject,
+        'birthday',
+        {
+          company,
+          employee
+        }
+      );
       this.logger.log(
         `📧 Email de cumpleaños enviado a la empresa para ${employee.first_name} ${employee.last_name}`
       );
@@ -759,11 +764,16 @@ export class NotificationsService {
     if (employee.email) {
       const employeeSubject = `🎉 ¡Feliz cumpleaños ${employee.first_name}!`;
       try {
-        await this.sendNotificationEmail(employee.email, employeeSubject, 'birthday', {
-          company,
-          employee,
-          isEmployee: true
-        });
+        await this.sendNotificationEmail(
+          employee.email,
+          employeeSubject,
+          'birthday',
+          {
+            company,
+            employee,
+            isEmployee: true
+          }
+        );
         this.logger.log(
           `📧 Email de cumpleaños enviado al empleado ${employee.first_name} ${employee.last_name}`
         );
