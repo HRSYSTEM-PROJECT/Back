@@ -853,7 +853,7 @@ export class NotificationsService {
       const dateString = `${year}-${month}-${day}`;
 
       // Usar calendarific.com que soporta Guatemala y muchos más países
-      const apiUrl = `https://calendarific.com/api/v2/holidays?api_key=YOUR_API_KEY&country=${countryCode}&year=${year}&month=${month}&day=${day}`;
+      const apiUrl = `https://calendarific.com/api/v2/holidays?api_key=CALENDARY_FIC&country=${countryCode}&year=${year}&month=${month}&day=${day}`;
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
