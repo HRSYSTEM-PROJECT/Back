@@ -49,15 +49,13 @@ export class CreateRegisterDto {
   })
   password: string;
 
-  /*
   @ApiProperty({
-    description: 'El ID del plan es obligatorio.',
-    example: '3c6a2d6e-e92b-43ef-837c-451b91cb5f33'
+    description: 'El país es obligatorio.',
+    example: 'Argentina'
   })
   @IsNotEmpty()
   @IsString()
-  plan_id: string;
-*/
+  country: string;
 
   @ApiProperty({
     description: 'La url y debe estar en formato de url.',
