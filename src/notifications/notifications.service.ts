@@ -741,33 +741,14 @@ export class NotificationsService {
       );
     }
 
-    // 3. Enviar email a la empresa
-    const companySubject = `🎉 ¡Hoy es el Cumpleaños de: ${employee.first_name}!`;
-    try {
-      await this.sendNotificationEmail(
-        company.email,
-        companySubject,
-        'birthday',
-        {
-          company,
-          employee
-        }
-      );
-      this.logger.log(
-        `📧 Email de cumpleaños enviado a la empresa para ${employee.first_name} ${employee.last_name}`
-      );
-    } catch (error) {
-      this.logger.error(`❌ Error enviando email a la empresa:`, error);
-    }
-
-    // 4. Enviar email al empleado (si tiene email)
+    // 3. Enviar email al empleado (si tiene email) - FELICITACIÓN PERSONAL
     if (employee.email) {
       const employeeSubject = `🎉 ¡Feliz cumpleaños ${employee.first_name}!`;
       try {
         await this.sendNotificationEmail(
           employee.email,
           employeeSubject,
-          'birthday',
+          'birthday_employee',
           {
             company,
             employee,
@@ -775,11 +756,31 @@ export class NotificationsService {
           }
         );
         this.logger.log(
-          `📧 Email de cumpleaños enviado al empleado ${employee.first_name} ${employee.last_name}`
+          `📧 Email de felicitación enviado al empleado ${employee.first_name} ${employee.last_name}`
         );
       } catch (error) {
         this.logger.error(`❌ Error enviando email al empleado:`, error);
       }
+    }
+
+    // 4. Enviar email a la empresa - RECORDATORIO PARA FELICITAR
+    const companySubject = `🎉 Recordatorio: Hoy es el cumpleaños de ${employee.first_name}`;
+    try {
+      await this.sendNotificationEmail(
+        company.email,
+        companySubject,
+        'birthday_company',
+        {
+          company,
+          employee,
+          isCompany: true
+        }
+      );
+      this.logger.log(
+        `📧 Email de recordatorio enviado a la empresa para ${employee.first_name} ${employee.last_name}`
+      );
+    } catch (error) {
+      this.logger.error(`❌ Error enviando email a la empresa:`, error);
     }
 
     this.logger.log(
