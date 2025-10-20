@@ -1149,8 +1149,6 @@ export class NotificationsService {
         return this.getSubscriptionExpiryTemplate(data);
       case 'subscription_expired':
         return this.getSubscriptionExpiredTemplate(data);
-      case 'birthday':
-        return this.getBirthdayTemplate(data);
       case 'birthday_employee':
         return this.getBirthdayEmployeeTemplate(data);
       case 'birthday_company':
