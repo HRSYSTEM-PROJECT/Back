@@ -9,12 +9,14 @@ import { Company } from 'src/empresa/entities/empresa.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { UserModule } from '../user/user.module';
 import { ClerkAuthGuard } from 'src/auth/guards/clerk.guard';
+import { UploadModule } from 'src/upload/upload.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Employee, Departamento, Position, Company]),
     NotificationsModule,
-    UserModule
+    UserModule,
+    UploadModule
   ],
   controllers: [EmpleadoController],
   providers: [EmpleadoService, ClerkAuthGuard]

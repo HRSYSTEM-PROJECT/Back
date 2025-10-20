@@ -26,6 +26,12 @@ import { SearchEmpleadoDto } from './dto/search-empleado.dto';
 import { AuthUser } from 'src/decoradores/auth-user.decoratos';
 import { ClerkAuthGuard } from 'src/auth/guards/clerk.guard';
 import { User } from 'src/user/entities/user.entity';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { UseInterceptors } from '@nestjs/common';
+import { UploadedFile } from '@nestjs/common';
+
+
 
 @ApiTags('Empleado')
 @UseGuards(ClerkAuthGuard) // 👈 aplica el guard a TODO el controller
@@ -33,20 +39,46 @@ import { User } from 'src/user/entities/user.entity';
 export class EmpleadoController {
   constructor(private readonly empleadoService: EmpleadoService) {}
 
-  // ✅ Crear empleado
-  @Post()
+  // // ✅ Crear empleado
+  // @Post()
+  // @ApiOperation({
+  //   summary: 'Crear nuevo empleado',
+  //   description:
+  //     'Registra un nuevo empleado en el sistema. La empresa se obtiene automáticamente del usuario autenticado.'
+  // })
+  // @ApiBody({ type: CreateEmployeeDto })
+  // @ApiResponse({ status: 201, description: 'Empleado creado exitosamente' })
+  // // async create(@AuthUser() user: any, @Body() dto: CreateEmployeeDto) {
+  // //   return this.empleadoService.create(dto, user);
+  // async create(@Req() req: AuthRequest, @Body() dto: CreateEmployeeDto) {
+  //   return this.empleadoService.create(dto, req.user);
+  // }
+
+  // @Post()
   @ApiOperation({
     summary: 'Crear nuevo empleado',
-    description:
-      'Registra un nuevo empleado en el sistema. La empresa se obtiene automáticamente del usuario autenticado.'
+    description: 'Registra un nuevo empleado en el sistema. La empresa se obtiene automáticamente del usuario autenticado.'
   })
   @ApiBody({ type: CreateEmployeeDto })
   @ApiResponse({ status: 201, description: 'Empleado creado exitosamente' })
-  // async create(@AuthUser() user: any, @Body() dto: CreateEmployeeDto) {
-  //   return this.empleadoService.create(dto, user);
-  async create(@Req() req: AuthRequest, @Body() dto: CreateEmployeeDto) {
-    return this.empleadoService.create(dto, req.user);
+  @UseInterceptors(FileInterceptor('file', {
+    storage: memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+        return cb(new Error('Solo se permiten imágenes'), false);
+      }
+      cb(null, true);
+    },
+  }))
+  async create(
+    @Req() req: AuthRequest,
+    @Body() dto: CreateEmployeeDto,
+    @UploadedFile() file: Express.Multer.File
+  ) {
+    return this.empleadoService.create(dto, req.user, file);
   }
+
 
   // ✅ Obtener todos los empleados
   @Get()
