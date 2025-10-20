@@ -34,6 +34,7 @@ import { Plan } from './plan/entities/plan.entity';
 import { Rol } from './rol/entities/rol.entity';
 import { Departamento } from './departamento/entities/departamento.entity';
 import { Position } from './position/entities/position.entity';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -65,7 +66,8 @@ import { Position } from './position/entities/position.entity';
     ChatModule,
     TypeOrmModule.forFeature([Plan, Rol, Departamento, Position]),
     StripeModule,
-    WeebhookModule
+    WeebhookModule,
+    UploadModule
   ],
   controllers: [AppController],
   providers: [

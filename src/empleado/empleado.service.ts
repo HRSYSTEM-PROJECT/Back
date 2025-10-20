@@ -16,6 +16,7 @@ import { Absence } from 'src/absence/entities/absence.entity';
 import { Company } from 'src/empresa/entities/empresa.entity';
 //import { User } from 'src/user/entities/user.entity';
 import { NotificationsService } from '../notifications/notifications.service';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class EmpleadoService {
@@ -28,7 +29,8 @@ export class EmpleadoService {
     private readonly departmentsRepository: Repository<Departamento>,
     @InjectRepository(Position)
     private readonly positionsRepository: Repository<Position>,
-    private readonly notificationsService: NotificationsService
+    private readonly notificationsService: NotificationsService,
+    private readonly uploadService: UploadService
   ) {}
 
   private calculateAge(birthdate: Date): number {
@@ -42,68 +44,112 @@ export class EmpleadoService {
   }
 
   // ---- Crear empleado (multi-tenant con Clerk) ----
+  // async create(
+  //   createEmployeeDto: CreateEmployeeDto,
+  //   user: AuthenticatedUser
+  // ): Promise<Employee> {
+  //   //Enconrtar la empresa en común
+  //   const company = await this.companiesRepository.findOne({
+  //     where: { id: user.companyId }
+  //   });
+  //   if (!company) {
+  //     throw new NotFoundException('Company not found.');
+  //   }
+
+  //   //Encontrar el departamento al que pertenece que envia el front
+  //   const department = await this.departmentsRepository.findOne({
+  //     where: { id: createEmployeeDto.department_id }
+  //   });
+  //   if (!department) {
+  //     throw new NotFoundException('Deparment ID not valid or not found.');
+  //   }
+
+  //   //Encontrar la posición a la que pertenece que envía el front
+  //   const position = await this.positionsRepository.findOne({
+  //     where: { id: createEmployeeDto.position_id }
+  //   });
+  //   if (!position) {
+  //     throw new NotFoundException('Position ID not valid or not found.');
+  //   }
+
+  //   try {
+  //     //Establecer relaciones y valores enviados desde el front
+  //     const employee = new Employee();
+  //     employee.company = company;
+  //     employee.department = department;
+  //     employee.position = position;
+  //     employee.first_name = createEmployeeDto.first_name;
+  //     employee.last_name = createEmployeeDto.last_name;
+  //     employee.dni = createEmployeeDto.dni;
+  //     employee.cuil = createEmployeeDto.cuil;
+  //     employee.phone_number = createEmployeeDto.phone_number;
+  //     employee.email = createEmployeeDto.email;
+  //     employee.imgUrl = createEmployeeDto.imgUrl;
+  //     employee.salary = createEmployeeDto.salary;
+
+  //     const savedEmployee = await this.employeeRepository.save(employee);
+
+  //     // 🔔 Notificar empleado agregado
+  //     try {
+  //       await this.notificationsService.notifyEmployeeAdded(
+  //         user.companyId,
+  //         `${savedEmployee.first_name} ${savedEmployee.last_name}`,
+  //         savedEmployee.position?.name || 'Empleado'
+  //       );
+  //     } catch (notificationError) {
+  //       console.error('Error enviando notificación:', notificationError);
+  //     }
+
+  //     return savedEmployee;
+  //   } catch (error) {
+  //     console.error('Error creando empleado:', error);
+  //     throw new InternalServerErrorException('No se pudo crear el empleado');
+  //   }
+  // }
+
+  //refactor con cloudinary
   async create(
-    createEmployeeDto: CreateEmployeeDto,
-    user: AuthenticatedUser
-  ): Promise<Employee> {
-    //Enconrtar la empresa en común
-    const company = await this.companiesRepository.findOne({
-      where: { id: user.companyId }
-    });
-    if (!company) {
-      throw new NotFoundException('Company not found.');
-    }
+  createEmployeeDto: CreateEmployeeDto,
+  user: AuthenticatedUser,
+  file?: Express.Multer.File
+): Promise<Employee> {
+  const company = await this.companiesRepository.findOne({ where: { id: user.companyId } });
+  if (!company) throw new NotFoundException('Company not found.');
 
-    //Encontrar el departamento al que pertenece que envia el front
-    const department = await this.departmentsRepository.findOne({
-      where: { id: createEmployeeDto.department_id }
-    });
-    if (!department) {
-      throw new NotFoundException('Deparment ID not valid or not found.');
-    }
+  const department = await this.departmentsRepository.findOne({ where: { id: createEmployeeDto.department_id } });
+  if (!department) throw new NotFoundException('Department not found.');
 
-    //Encontrar la posición a la que pertenece que envía el front
-    const position = await this.positionsRepository.findOne({
-      where: { id: createEmployeeDto.position_id }
-    });
-    if (!position) {
-      throw new NotFoundException('Position ID not valid or not found.');
-    }
+  const position = await this.positionsRepository.findOne({ where: { id: createEmployeeDto.position_id } });
+  if (!position) throw new NotFoundException('Position not found.');
 
-    try {
-      //Establecer relaciones y valores enviados desde el front
-      const employee = new Employee();
-      employee.company = company;
-      employee.department = department;
-      employee.position = position;
-      employee.first_name = createEmployeeDto.first_name;
-      employee.last_name = createEmployeeDto.last_name;
-      employee.dni = createEmployeeDto.dni;
-      employee.cuil = createEmployeeDto.cuil;
-      employee.phone_number = createEmployeeDto.phone_number;
-      employee.email = createEmployeeDto.email;
-      employee.imgUrl = createEmployeeDto.imgUrl;
-      employee.salary = createEmployeeDto.salary;
-
-      const savedEmployee = await this.employeeRepository.save(employee);
-
-      // 🔔 Notificar empleado agregado
-      try {
-        await this.notificationsService.notifyEmployeeAdded(
-          user.companyId,
-          `${savedEmployee.first_name} ${savedEmployee.last_name}`,
-          savedEmployee.position?.name || 'Empleado'
-        );
-      } catch (notificationError) {
-        console.error('Error enviando notificación:', notificationError);
-      }
-
-      return savedEmployee;
-    } catch (error) {
-      console.error('Error creando empleado:', error);
-      throw new InternalServerErrorException('No se pudo crear el empleado');
-    }
+  let imageUrl = createEmployeeDto.imgUrl;
+  if (file) {
+    imageUrl = await this.uploadService.uploadImage(file); // sube a Cloudinary
   }
+
+  const employee = this.employeeRepository.create({
+    ...createEmployeeDto,
+    company,
+    department,
+    position,
+    imgUrl: imageUrl
+  });
+
+  const savedEmployee = await this.employeeRepository.save(employee);
+
+  try {
+    await this.notificationsService.notifyEmployeeAdded(
+      user.companyId,
+      `${savedEmployee.first_name} ${savedEmployee.last_name}`,
+      savedEmployee.position?.name || 'Empleado'
+    );
+  } catch (err) {
+    console.error('Error enviando notificación:', err);
+  }
+
+  return savedEmployee;
+}
+
 
   // ---- Listar todos ----
   async findAll(
