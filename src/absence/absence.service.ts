@@ -100,6 +100,9 @@ import { UpdateAbsenceDto } from './dto/update-absence.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Employee } from '../empleado/entities/empleado.entity';
 import { AuthenticatedUser } from 'src/interfaces/authenticated-user.interface';
+import { MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
+import { Query, Controller, Get, Req } from '@nestjs/common';
+import { AuthUser } from 'src/decoradores/auth-user.decoratos';
 
 @Injectable()
 export class AbsenceService {
@@ -110,6 +113,23 @@ export class AbsenceService {
     private readonly employeeRepository: Repository<Employee>,
     private readonly notificationsService: NotificationsService
   ) {}
+
+   // Función para contar días laborales
+  private countBusinessDays(start: Date, end: Date): number {
+  let count = 0;
+  const current = new Date(start);
+
+  while (current <= end) {
+    const day = current.getDay();
+    if (day !== 0 && day !== 6) { // lunes a viernes
+      count++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  return count;
+}
+
 
   async create(
     createAbsenceDto: CreateAbsenceDto,
@@ -210,4 +230,79 @@ export class AbsenceService {
     const absence = await this.findOne(id, user);
     await this.absenceRepository.remove(absence);
   }
+
+
+
+  //filtro de ausencias tipo ranking de todos los empledos de la empresa
+  async getAusenciasRanking(
+  user: AuthenticatedUser,
+  startDate?: string,
+  endDate?: string,
+  page = 1,
+  limit = 10
+) {
+  // Si no hay rango, usamos mes en curso
+  let start: Date, end: Date;
+  if (!startDate || !endDate) {
+    const now = new Date();
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+    end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  } else {
+    start = new Date(startDate);
+    end = new Date(endDate);
+  }
+
+  // Traemos todas las ausencias de la empresa dentro del rango
+  const absences = await this.absenceRepository.find({
+    relations: ['employee'],
+    where: {
+      start_date: LessThanOrEqual(end),
+      end_date: MoreThanOrEqual(start),
+      employee: { company: { id: user.companyId } }
+    }
+  });
+
+  // Contamos días laborales por empleado
+  const rankingMap = new Map<string, { employeeName: string; totalDays: number }>();
+
+  absences.forEach(abs => {
+    const overlapStart = abs.start_date > start ? abs.start_date : start;
+    const overlapEnd = abs.end_date < end ? abs.end_date : end;
+
+    // Aquí se calcula correctamente dentro del cuerpo del método
+    const days = this.countBusinessDays(overlapStart, overlapEnd);
+
+    if (rankingMap.has(abs.employee.id)) {
+      rankingMap.get(abs.employee.id)!.totalDays += days;
+    } else {
+      rankingMap.set(abs.employee.id, {
+        employeeName: `${abs.employee.first_name} ${abs.employee.last_name}`,
+        totalDays: days
+      });
+    }
+  });
+
+  // Convertimos a array y ordenamos
+  const ranking = Array.from(rankingMap.entries())
+    .map(([employeeId, data]) => ({
+      employeeId,
+      employeeName: data.employeeName,
+      totalDays: data.totalDays
+    }))
+    .sort((a, b) => b.totalDays - a.totalDays);
+
+  // Paginación
+  const startIdx = (page - 1) * limit;
+  const endIdx = startIdx + limit;
+  const paginated = ranking.slice(startIdx, endIdx);
+
+  return {
+    totalEmployees: ranking.length,
+    page,
+    limit,
+    data: paginated
+  };
+}
+
+
 }

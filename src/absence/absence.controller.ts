@@ -123,4 +123,23 @@ export class AbsenceController {
   remove(@Param('id') id: string, @AuthUser() user: AuthenticatedUser) {
     return this.absenceService.remove(id, user);
   }
+
+  //get de ranking de ausencias
+  @Get('ausencias/ranking')
+async getAusenciasRanking(
+  @AuthUser() user: AuthenticatedUser,
+  @Query('startDate') startDate?: string,
+  @Query('endDate') endDate?: string,
+  @Query('page') page?: number,
+  @Query('limit') limit?: number
+) {
+  return this.absenceService.getAusenciasRanking(
+    user,
+    startDate,
+    endDate,
+    page ? Number(page) : 1,
+    limit ? Number(limit) : 10
+  );
+}
+
 }
