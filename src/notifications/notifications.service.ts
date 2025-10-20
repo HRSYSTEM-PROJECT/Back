@@ -723,7 +723,7 @@ export class NotificationsService {
   private async sendBirthdayNotification(employee: Employee) {
     const company = employee.company;
 
-    // Crear notificación en BD
+    // 1. Crear notificación en BD para la empresa
     await this.createNotification(
       company.id,
       '🎉 ¡Feliz cumpleaños!',
@@ -731,20 +731,50 @@ export class NotificationsService {
       'birthday_reminder' as NotificationType
     );
 
-    // Enviar email
-    const subject = `🎉 ¡Feliz cumpleaños ${employee.first_name}!`;
+    // 2. Crear notificación en BD para el empleado (si tiene usuario asociado)
+    if (employee.user_id) {
+      await this.createNotification(
+        employee.user_id,
+        '🎉 ¡Feliz cumpleaños!',
+        `¡Feliz cumpleaños ${employee.first_name}! Que tengas un día maravilloso.`,
+        'birthday_reminder' as NotificationType
+      );
+    }
 
+    // 3. Enviar email a la empresa
+    const companySubject = `🎉 ¡Hoy es el Cumpleaños de: ${employee.first_name}!`;
     try {
-      await this.sendNotificationEmail(company.email, subject, 'birthday', {
+      await this.sendNotificationEmail(company.email, companySubject, 'birthday', {
         company,
         employee
       });
       this.logger.log(
-        `🎂 Notificación de cumpleaños enviada para ${employee.first_name} ${employee.last_name}`
+        `📧 Email de cumpleaños enviado a la empresa para ${employee.first_name} ${employee.last_name}`
       );
     } catch (error) {
-      this.logger.error(`❌ Error enviando notificación de cumpleaños:`, error);
+      this.logger.error(`❌ Error enviando email a la empresa:`, error);
     }
+
+    // 4. Enviar email al empleado (si tiene email)
+    if (employee.email) {
+      const employeeSubject = `🎉 ¡Feliz cumpleaños ${employee.first_name}!`;
+      try {
+        await this.sendNotificationEmail(employee.email, employeeSubject, 'birthday', {
+          company,
+          employee,
+          isEmployee: true
+        });
+        this.logger.log(
+          `📧 Email de cumpleaños enviado al empleado ${employee.first_name} ${employee.last_name}`
+        );
+      } catch (error) {
+        this.logger.error(`❌ Error enviando email al empleado:`, error);
+      }
+    }
+
+    this.logger.log(
+      `🎂 Notificación de cumpleaños completada para ${employee.first_name} ${employee.last_name}`
+    );
   }
 
   // 🎊 Verificar feriados por país usando API
