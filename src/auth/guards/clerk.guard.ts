@@ -3,6 +3,7 @@ import { verifyToken } from '@clerk/backend';
 import { Request } from 'express';
 import { CLERK_SECRET_KEY } from 'src/config/envs';
 import { UserService } from 'src/user/user.service';
+import { Role } from 'src/rol/enums/role.enum';
 
 //-------------------------------------------------//
 //-------------------------------------------------//
@@ -40,6 +41,23 @@ export class ClerkAuthGuard implements CanActivate {
 
       if (!userDB) return false;
 
+      // Determinar el companyId de forma segura
+      let finalCompanyId: string;
+      const userRole = userDB.role.name; // 'super_admin', 'company_owner', etc.
+
+      // 🛑 Lógica modificada: Si el usuario es Super Admin, o no tiene empresa,
+      // asignamos una cadena vacía. En caso contrario, asignamos el ID.
+      if (userRole === Role.SUPER_ADMIN || !userDB.company) {
+        // Si el Super Admin intenta obtener el ID, obtendrá una cadena vacía.
+        // Esto satisface a la interfaz (string) y probablemente fallará en
+        // los servicios que esperan un ID real, lo cual es correcto
+        // para las rutas de Company Owner.
+        finalCompanyId = '';
+      } else {
+        // Para Company Owner, HR Manager, etc., que tienen empresa
+        finalCompanyId = userDB.company.id;
+      }
+
       //Info del token más DB
       request.user = {
         clerkId: clerkUserId,
@@ -47,13 +65,13 @@ export class ClerkAuthGuard implements CanActivate {
         email: userDB.email,
         name: userDB.first_name,
         rol: userDB.role.name,
-        companyId: userDB.company.id,
+        companyId: finalCompanyId,
         roles: [userDB.role.name]
       };
 
       return true;
     } catch (error) {
-      console.log(error);
+      console.log('Error en CLerkAuthGuard:', error);
       return false;
     }
   }
