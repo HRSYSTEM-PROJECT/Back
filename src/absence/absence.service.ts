@@ -101,8 +101,6 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { Employee } from '../empleado/entities/empleado.entity';
 import { AuthenticatedUser } from 'src/interfaces/authenticated-user.interface';
 import { MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
-import { Query, Controller, Get, Req } from '@nestjs/common';
-import { AuthUser } from 'src/decoradores/auth-user.decoratos';
 
 @Injectable()
 export class AbsenceService {
@@ -303,6 +301,5 @@ export class AbsenceService {
     data: paginated
   };
 }
-
 
 }
