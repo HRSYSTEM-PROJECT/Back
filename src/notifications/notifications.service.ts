@@ -174,7 +174,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Ejecutar notificaciones programadas
-  @Cron('*/15 * * * *') // Cada 15 minutos
+  @Cron('*/59 * * * *') // Cada 59 minutos
   async executeScheduledNotifications() {
     const cronName = 'executeScheduledNotifications';
     this.logger.log(
@@ -1411,7 +1411,7 @@ export class NotificationsService {
           </p>
         </div>    
         <div style="background: #f8f9fa; padding: 25px; border-radius: 10px; margin: 30px 0; border-left: 4px solid #f39c12;">
-          <h3 style="color: #2c3e50; margin: 0 0 15px 0; font-size: 18px;">📅 Detalles del feriado:</h3>
+          <h3 style="color: #2c3e50; margin: 0 0 15px 0; font-size: 18px;">📅 Detalles del dia:</h3>
           <ul style="margin: 0; padding-left: 20px; color: #555;">
             <li><strong>Nombre:</strong> ${data.holiday.name}</li>
             <li><strong>Fecha:</strong> ${data.date ? data.date.toLocaleDateString() : 'N/A'}</li>
