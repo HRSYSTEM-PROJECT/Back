@@ -36,45 +36,44 @@ import { UploadService } from 'src/upload/upload.service';
 @UseGuards(ClerkAuthGuard) // 👈 aplica el guard a TODO el controller
 @Controller('empleado')
 export class EmpleadoController {
-  constructor(private readonly empleadoService: EmpleadoService,
+  constructor(
+    private readonly empleadoService: EmpleadoService,
     private readonly uploadService: UploadService
   ) {}
 
-  
   //otro refactor para imgUrl
   @Post()
-@ApiOperation({
-  summary: 'Crear nuevo empleado',
-  description:
-    'Registra un nuevo empleado en el sistema. La empresa se obtiene automáticamente del usuario autenticado.'
-})
-@ApiBody({ type: CreateEmployeeDto })
-@ApiResponse({ status: 201, description: 'Empleado creado exitosamente' })
-@UseInterceptors(
-  FileInterceptor('file', {
-    storage: memoryStorage(),
-    limits: { fileSize: 5 * 1024 * 1024 },
-    fileFilter: (req, file, cb) => {
-      if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
-        return cb(new Error('Solo se permiten imágenes'), false);
-      }
-      cb(null, true);
-    }
+  @ApiOperation({
+    summary: 'Crear nuevo empleado',
+    description:
+      'Registra un nuevo empleado en el sistema. La empresa se obtiene automáticamente del usuario autenticado.'
   })
-)
-async create(
-  @Req() req: AuthRequest,
-  @Body() dto: CreateEmployeeDto,
-  @UploadedFile() file: Express.Multer.File
-) {
-  if (file) {
-    const imageUrl = await this.uploadService.uploadImage(file);
-    dto.imgUrl = imageUrl;
+  @ApiBody({ type: CreateEmployeeDto })
+  @ApiResponse({ status: 201, description: 'Empleado creado exitosamente' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (req, file, cb) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+          return cb(new Error('Solo se permiten imágenes'), false);
+        }
+        cb(null, true);
+      }
+    })
+  )
+  async create(
+    @Req() req: AuthRequest,
+    @Body() dto: CreateEmployeeDto,
+    @UploadedFile() file: Express.Multer.File
+  ) {
+    if (file) {
+      const imageUrl = await this.uploadService.uploadImage(file);
+      dto.imgUrl = imageUrl;
+    }
+
+    return this.empleadoService.create(dto, req.user);
   }
-
-  return this.empleadoService.create(dto, req.user);
-}
-
 
   // ✅ Obtener todos los empleados
   @Get()
@@ -85,6 +84,20 @@ async create(
   @ApiResponse({ status: 200, description: 'Lista de empleados obtenida' })
   async findAll(@Req() req: AuthRequest) {
     return this.empleadoService.findAll(req.user);
+  }
+
+  // ✅ Buscar empleados (filtro)
+  @Get('search')
+  @ApiOperation({
+    summary: 'Buscar empleados',
+    description:
+      'Busca empleados según criterios (nombre, apellido, email, etc.)'
+  })
+  async searchEmpleados(
+    @Req() req: AuthRequest,
+    @Query() searchDto: SearchEmpleadoDto
+  ) {
+    return this.empleadoService.search(req.user, searchDto);
   }
 
   // ✅ Buscar por ID
@@ -100,20 +113,6 @@ async create(
   })
   async findOne(@Param('id') id: string, @Req() req: AuthRequest) {
     return this.empleadoService.findOne(id, req.user);
-  }
-
-  // ✅ Buscar empleados (filtro)
-  @Get('search')
-  @ApiOperation({
-    summary: 'Buscar empleados',
-    description:
-      'Busca empleados según criterios (nombre, apellido, email, etc.)'
-  })
-  async searchEmpleados(
-    @Req() req: AuthRequest,
-    @Query() searchDto: SearchEmpleadoDto
-  ) {
-    return this.empleadoService.search(req.user, searchDto);
   }
 
   // ✅ Actualizar empleado
@@ -161,23 +160,21 @@ async create(
   //     year
   //   );
   // }
-
   async getAusenciasByEmpleado(
-  @Param('id') employeeId: string,
-  @Req() req: AuthRequest,
-  @Query('month') month?: number,
-  @Query('year') year?: number,
-  @Query('page') page?: number,
-  @Query('limit') limit?: number
-) {
-  return this.empleadoService.getAusenciasByEmpleado(
-    employeeId,
-    req.user,
-    month ? Number(month) : undefined,
-    year ? Number(year) : undefined,
-    page ? Number(page) : 1,
-    limit ? Number(limit) : 10
-  );
-}
-
+    @Param('id') employeeId: string,
+    @Req() req: AuthRequest,
+    @Query('month') month?: number,
+    @Query('year') year?: number,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number
+  ) {
+    return this.empleadoService.getAusenciasByEmpleado(
+      employeeId,
+      req.user,
+      month ? Number(month) : undefined,
+      year ? Number(year) : undefined,
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 10
+    );
+  }
 }
