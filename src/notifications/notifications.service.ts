@@ -245,7 +245,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Recordatorio de cumpleaños
-  @Cron('*/30 * * * *') //Cada 30 minutos
+  @Cron('0 9 * * *') //Cada 9:00 AM
   async checkBirthdays() {
     const cronName = 'checkBirthdays';
     this.logger.log('🎂 Verificando cumpleaños de empleados...');
@@ -276,7 +276,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Recordatorios de feriados
-  @Cron('*/15 * * * *') // Cada 15 minutos
+  @Cron('0 9 * * *') // Cada 9:00 AM
   async checkHolidays() {
     const cronName = 'checkHolidays';
     this.logger.log('🎊 Verificando feriados...');
@@ -468,7 +468,7 @@ export class NotificationsService {
 
     // Validar fecha futura y usuario
     this.validateFutureDate(scheduledDate);
-    const user = await this.findUserById(userId);
+    // const user = await this.findUserById(userId); // Variable no utilizada
 
     // Crear notificación programada
     const scheduledNotification = new ScheduledNotification();
@@ -552,7 +552,7 @@ export class NotificationsService {
     const recipients: User[] = [];
 
     switch (scheduledNotification.recipient_type) {
-      case RecipientType.ALL:
+      case RecipientType.ALL: {
         // Todos los usuarios de la empresa del creador
         const creator = await this.userRepository.findOne({
           where: { id: scheduledNotification.created_by },
@@ -566,6 +566,7 @@ export class NotificationsService {
           recipients.push(...allUsers);
         }
         break;
+      }
 
       case RecipientType.EMPLOYEES:
         // Empleados específicos
@@ -1172,7 +1173,7 @@ export class NotificationsService {
 
   // Obtener configuración de notificaciones
   async getNotificationConfig(userId: string) {
-    const user = await this.findUserById(userId);
+    // const user = await this.findUserById(userId); // Variable no utilizada
 
     let config = await this.configRepository.findOne({
       where: { user_id: userId }
@@ -1196,7 +1197,7 @@ export class NotificationsService {
     userId: string,
     configData: UpdateNotificationConfigDto
   ) {
-    const user = await this.findUserById(userId);
+    // const user = await this.findUserById(userId); // Variable no utilizada
 
     let config = await this.configRepository.findOne({
       where: { user_id: userId }
@@ -1392,9 +1393,7 @@ export class NotificationsService {
     const recipientName = isEmployee
       ? data.employee.first_name
       : data.company.legal_name;
-    const greeting = isEmployee
-      ? `Hola ${recipientName}`
-      : `Hola ${recipientName}`;
+    const greeting = `Hola ${recipientName}`;
 
     return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff;">
@@ -1415,7 +1414,7 @@ export class NotificationsService {
           <h3 style="color: #2c3e50; margin: 0 0 15px 0; font-size: 18px;">📅 Detalles del feriado:</h3>
           <ul style="margin: 0; padding-left: 20px; color: #555;">
             <li><strong>Nombre:</strong> ${data.holiday.name}</li>
-            <li><strong>Fecha:</strong> ${data.date.toLocaleDateString()}</li>
+            <li><strong>Fecha:</strong> ${data.date ? data.date.toLocaleDateString() : 'N/A'}</li>
             <li><strong>País:</strong> ${data.countryCode}</li>
           </ul>
         </div>

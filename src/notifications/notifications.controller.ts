@@ -121,7 +121,6 @@ export class NotificationsController {
     return this.notificationsService.remove(userId, notificationId);
   }
 
-
   @Get('config')
   @ApiOperation({ summary: 'Obtener configuración de notificaciones' })
   @ApiBody({
