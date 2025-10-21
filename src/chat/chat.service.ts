@@ -30,26 +30,44 @@ export class ChatService {
     private userRepository: Repository<User>
   ) {}
 
-  // 🔍 Buscar usuarios para chat
+  // 🔍 Buscar usuarios para chat (SOLO DE LA MISMA EMPRESA)
   async searchUsers(
-    currentUserId: string, 
-    query: string = '', 
-    page: number = 1, 
+    currentUserId: string,
+    query: string = '',
+    page: number = 1,
     limit: number = 20
   ) {
-    this.logger.log(`🔍 Buscando usuarios para chat: "${query}"`);
+    this.logger.log(
+      `🔍 Buscando usuarios para chat en la misma empresa: "${query}"`
+    );
+
+    // Primero obtener la empresa del usuario actual
+    const currentUser = await this.userRepository.findOne({
+      where: { id: currentUserId },
+      relations: ['company']
+    });
+
+    if (!currentUser || !currentUser.company) {
+      throw new NotFoundException(
+        'Usuario no encontrado o sin empresa asignada'
+      );
+    }
 
     const queryBuilder = this.userRepository
       .createQueryBuilder('user')
+      .leftJoinAndSelect('user.company', 'company')
       .where('user.id != :currentUserId', { currentUserId })
-      .andWhere('user.is_deleted = :isDeleted', { isDeleted: false });
+      .andWhere('user.is_deleted = :isDeleted', { isDeleted: false })
+      .andWhere('company.id = :companyId', {
+        companyId: currentUser.company.id
+      });
 
     // Si hay query, buscar por nombre o email
     if (query.trim()) {
       queryBuilder.andWhere(
         '(LOWER(user.first_name) LIKE LOWER(:query) OR ' +
-        'LOWER(user.last_name) LIKE LOWER(:query) OR ' +
-        'LOWER(user.email) LIKE LOWER(:query))',
+          'LOWER(user.last_name) LIKE LOWER(:query) OR ' +
+          'LOWER(user.email) LIKE LOWER(:query))',
         { query: `%${query}%` }
       );
     }
@@ -63,8 +81,12 @@ export class ChatService {
       .take(limit)
       .getManyAndCount();
 
+    this.logger.log(
+      `🔍 Encontrados ${users.length} usuarios de la empresa ${currentUser.company.legal_name}`
+    );
+
     return {
-      users: users.map(user => ({
+      users: users.map((user) => ({
         id: user.id,
         email: user.email,
         first_name: user.first_name,
@@ -78,17 +100,44 @@ export class ChatService {
     };
   }
 
-  // 📝 Crear chat directo entre dos usuarios
+  // 📝 Crear chat directo entre dos usuarios (MISMA EMPRESA)
   async createDirectChat(userId: string, otherUserId: string): Promise<Chat> {
     this.logger.log(`📝 Creando chat directo entre ${userId} y ${otherUserId}`);
 
-    // Verificar que el otro usuario exista
-    const otherUser = await this.userRepository.findOne({
-      where: { id: otherUserId }
-    });
-    if (!otherUser) {
-      throw new NotFoundException('Usuario no encontrado');
+    // Obtener ambos usuarios con sus empresas
+    const [currentUser, otherUser] = await Promise.all([
+      this.userRepository.findOne({
+        where: { id: userId },
+        relations: ['company']
+      }),
+      this.userRepository.findOne({
+        where: { id: otherUserId },
+        relations: ['company']
+      })
+    ]);
+
+    if (!currentUser || !currentUser.company) {
+      throw new NotFoundException(
+        'Usuario actual no encontrado o sin empresa asignada'
+      );
     }
+
+    if (!otherUser || !otherUser.company) {
+      throw new NotFoundException(
+        'Usuario destino no encontrado o sin empresa asignada'
+      );
+    }
+
+    // ✅ VALIDAR QUE AMBOS USUARIOS PERTENEZCAN A LA MISMA EMPRESA
+    if (currentUser.company.id !== otherUser.company.id) {
+      throw new ForbiddenException(
+        'No puedes chatear con usuarios de otras empresas'
+      );
+    }
+
+    this.logger.log(
+      `✅ Validación de empresa exitosa: ${currentUser.company.legal_name}`
+    );
 
     // Verificar si ya existe un chat directo entre estos usuarios
     const existingChat = await this.chatRepository
@@ -153,14 +202,8 @@ export class ChatService {
       `💬 Enviando mensaje en chat ${chatId} por usuario ${userId}`
     );
 
-    // Verificar que el usuario sea participante del chat
-    const participant = await this.participantRepository.findOne({
-      where: { chat_id: chatId, user_id: userId, is_active: true }
-    });
-
-    if (!participant) {
-      throw new ForbiddenException('No tienes acceso a este chat');
-    }
+    // ✅ VALIDAR ACCESO POR EMPRESA
+    await this.validateUserCompanyAccess(chatId, userId);
 
     // Crear el mensaje
     const newMessage = this.messageRepository.create({
@@ -196,7 +239,63 @@ export class ChatService {
     return messageWithRelations;
   }
 
-  // 📋 Obtener chats de un usuario
+  // 👥 Obtener participantes de un chat
+  async getChatParticipants(chatId: string) {
+    return await this.participantRepository.find({
+      where: { chat_id: chatId, is_active: true },
+      relations: ['user']
+    });
+  }
+
+  // 🏢 Validar que el usuario pertenece a la misma empresa que el chat
+  private async validateUserCompanyAccess(
+    chatId: string,
+    userId: string
+  ): Promise<void> {
+    // Obtener el chat con sus participantes y empresas
+    const chat = await this.chatRepository
+      .createQueryBuilder('chat')
+      .leftJoinAndSelect('chat.participants', 'participant')
+      .leftJoinAndSelect('participant.user', 'user')
+      .leftJoinAndSelect('user.company', 'company')
+      .where('chat.id = :chatId', { chatId })
+      .getOne();
+
+    if (!chat) {
+      throw new NotFoundException('Chat no encontrado');
+    }
+
+    // Obtener la empresa del usuario actual
+    const currentUser = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['company']
+    });
+
+    if (!currentUser || !currentUser.company) {
+      throw new ForbiddenException('Usuario sin empresa asignada');
+    }
+
+    // Verificar que todos los participantes pertenezcan a la misma empresa
+    const participantsCompanies = chat.participants
+      .map((p) => p.user.company?.id)
+      .filter(Boolean);
+    const uniqueCompanies = [...new Set(participantsCompanies)];
+
+    if (
+      uniqueCompanies.length > 1 ||
+      !uniqueCompanies.includes(currentUser.company.id)
+    ) {
+      throw new ForbiddenException(
+        'No tienes acceso a este chat (diferentes empresas)'
+      );
+    }
+
+    this.logger.log(
+      `✅ Validación de empresa exitosa para chat ${chatId} - Empresa: ${currentUser.company.legal_name}`
+    );
+  }
+
+  // 📋 Obtener chats de un usuario (SOLO DE LA MISMA EMPRESA)
   async getUserChats(
     userId: string,
     page: number = 1,
@@ -208,21 +307,43 @@ export class ChatService {
     limit: number;
     totalPages: number;
   }> {
-    this.logger.log(`📋 Obteniendo chats del usuario ${userId}`);
+    this.logger.log(
+      `📋 Obteniendo chats del usuario ${userId} (misma empresa)`
+    );
+
+    // Obtener la empresa del usuario actual
+    const currentUser = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['company']
+    });
+
+    if (!currentUser || !currentUser.company) {
+      throw new NotFoundException(
+        'Usuario no encontrado o sin empresa asignada'
+      );
+    }
 
     const [chats, total] = await this.chatRepository
       .createQueryBuilder('chat')
       .leftJoinAndSelect('chat.participants', 'participant')
       .leftJoinAndSelect('participant.user', 'user')
+      .leftJoinAndSelect('user.company', 'userCompany')
       .leftJoinAndSelect('chat.creator', 'creator')
       .leftJoinAndSelect('chat.messages', 'message')
       .where('participant.user_id = :userId', { userId })
       .andWhere('participant.is_active = :isActive', { isActive: true })
       .andWhere('chat.is_deleted = :isDeleted', { isDeleted: false })
+      .andWhere('userCompany.id = :companyId', {
+        companyId: currentUser.company.id
+      })
       .orderBy('chat.updated_at', 'DESC')
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
+
+    this.logger.log(
+      `📋 Encontrados ${chats.length} chats de la empresa ${currentUser.company.legal_name}`
+    );
 
     return {
       chats,
@@ -248,14 +369,8 @@ export class ChatService {
   }> {
     this.logger.log(`💬 Obteniendo mensajes del chat ${chatId}`);
 
-    // Verificar que el usuario sea participante del chat
-    const participant = await this.participantRepository.findOne({
-      where: { chat_id: chatId, user_id: userId, is_active: true }
-    });
-
-    if (!participant) {
-      throw new ForbiddenException('No tienes acceso a este chat');
-    }
+    // ✅ VALIDAR ACCESO POR EMPRESA
+    await this.validateUserCompanyAccess(chatId, userId);
 
     const [messages, total] = await this.messageRepository.findAndCount({
       where: { chat_id: chatId, is_deleted: false },
@@ -322,18 +437,12 @@ export class ChatService {
     await this.messageRepository.save(message);
   }
 
-  // 📋 Obtener chat específico
+  // 📋 Obtener chat específico (con validación de empresa)
   async getChat(chatId: string, userId: string): Promise<Chat> {
-    this.logger.log(`📋 Obteniendo chat ${chatId}`);
+    this.logger.log(`📋 Obteniendo chat ${chatId} para usuario ${userId}`);
 
-    // Verificar que el usuario sea participante del chat
-    const participant = await this.participantRepository.findOne({
-      where: { chat_id: chatId, user_id: userId, is_active: true }
-    });
-
-    if (!participant) {
-      throw new ForbiddenException('No tienes acceso a este chat');
-    }
+    // ✅ VALIDAR ACCESO POR EMPRESA
+    await this.validateUserCompanyAccess(chatId, userId);
 
     const chat = await this.chatRepository.findOne({
       where: { id: chatId, is_deleted: false },

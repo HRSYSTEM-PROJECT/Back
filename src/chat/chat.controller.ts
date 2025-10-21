@@ -19,6 +19,7 @@ import {
   ApiBearerAuth
 } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
+import { ChatGateway } from './chat.gateway';
 import { SendMessageDto } from './dto/send-message.dto';
 import { ClerkAuthGuard } from '../auth/guards/clerk.guard';
 
@@ -27,7 +28,10 @@ import { ClerkAuthGuard } from '../auth/guards/clerk.guard';
 @UseGuards(ClerkAuthGuard)
 @Controller('chat')
 export class ChatController {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly chatGateway: ChatGateway
+  ) {}
 
   // 🔍 Buscar usuarios para chat
   @Get('users/search')
@@ -60,7 +64,16 @@ export class ChatController {
     if (!req.user || !req.user.id) {
       throw new Error('Usuario no autenticado');
     }
-    return await this.chatService.createDirectChat(req.user.id, otherUserId);
+
+    const chat = await this.chatService.createDirectChat(
+      req.user.id,
+      otherUserId
+    );
+
+    // 🔗 Unir automáticamente a los participantes del chat
+    await this.chatGateway.joinUsersToChat(chat.id);
+
+    return chat;
   }
 
   // 📋 Obtener chats del usuario

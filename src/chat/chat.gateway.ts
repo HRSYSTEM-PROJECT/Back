@@ -281,6 +281,27 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  // 🔗 Método público para unir usuarios a un chat específico
+  async joinUsersToChat(chatId: string) {
+    try {
+      // Obtener todos los participantes del chat
+      const participants = await this.chatService.getChatParticipants(chatId);
+      
+      for (const participant of participants) {
+        const socketId = this.userSockets.get(participant.user_id);
+        if (socketId) {
+          const socket = this.server.sockets.sockets.get(socketId);
+          if (socket) {
+            socket.join(`chat_${chatId}`);
+            this.logger.log(`👥 Usuario ${participant.user_id} unido al chat ${chatId}`);
+          }
+        }
+      }
+    } catch (error: any) {
+      this.logger.error(`❌ Error uniendo usuarios al chat ${chatId}:`, error);
+    }
+  }
+
   // Enviar mensaje a todos los participantes de un chat
   private broadcastToChat(
     chatId: string,
