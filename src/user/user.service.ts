@@ -130,7 +130,7 @@ export class UserService {
 
   //-----Encontrar todos los usuarios----//
   async findAll(): Promise<User[]> {
-    return this.userRepository.find();
+    return this.userRepository.find({ relations: ['role'] });
   }
 
   //-----Encontrar todos los usuarios de una empersa-----//
