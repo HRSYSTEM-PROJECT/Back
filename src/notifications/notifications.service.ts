@@ -272,20 +272,19 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Recordatorios de feriados
-  @Cron('0 7 * * *') // Todos los días a las 7:00 AM
+  @Cron('*/15 * * * *') // Cada 15 minutos
   async checkHolidays() {
     const cronName = 'checkHolidays';
     this.logger.log('🎊 Verificando feriados...');
 
     try {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      const today = new Date();
 
       // Obtener todas las empresas con sus configuraciones
       const companies = await this.companyRepository.find();
 
       for (const company of companies) {
-        await this.checkCompanyHolidays(company, tomorrow);
+        await this.checkCompanyHolidays(company, today);
       }
 
       this.updateCronStatus(cronName, 'success');
@@ -848,17 +847,16 @@ export class NotificationsService {
     date: Date
   ): Promise<{ isHoliday: boolean; name?: string }> {
     try {
-      // Usar una API gratuita de feriados (ejemplo: holidayapi.com o similar)
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
+      const dateString = `${year}-${month}-${day}`;
 
-      // URL de ejemplo para una API de feriados (reemplazar con API real)
-      const apiUrl = `https://date.nager.at/api/v3/IsPublicHoliday/${year}-${month}-${day}/${countryCode}`;
+      // Usar calendarific.com que soporta Guatemala y muchos más países
+      const apiUrl = `https://calendarific.com/api/v2/holidays?api_key=CALENDARY_FIC&country=${countryCode}&year=${year}&month=${month}&day=${day}`;
 
-      // Agregar timeout y mejor manejo de errores
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
       const response = await fetch(apiUrl, {
         signal: controller.signal,
@@ -870,65 +868,33 @@ export class NotificationsService {
 
       clearTimeout(timeoutId);
 
-      // Verificar status de respuesta
       if (!response.ok) {
         this.logger.warn(
-          `⚠️ API de feriados respondió con status ${response.status}`
+          `⚠️ API de feriados respondió con status ${response.status} para ${countryCode}`
         );
         return { isHoliday: false };
       }
 
-      // Verificar si la respuesta tiene contenido
       const responseText = await response.text();
       if (!responseText || responseText.trim() === '') {
         this.logger.warn(`⚠️ API de feriados devolvió respuesta vacía`);
         return { isHoliday: false };
       }
 
-      const isHoliday = JSON.parse(responseText);
-
-      if (isHoliday) {
-        // Si es feriado, obtener el nombre del feriado
-        const holidayInfoUrl = `https://date.nager.at/api/v3/PublicHolidays/${year}/${countryCode}`;
-        try {
-          const holidayResponse = await fetch(holidayInfoUrl, {
-            signal: controller.signal,
-            headers: {
-              Accept: 'application/json',
-              'User-Agent': 'HR-System/1.0'
-            }
-          });
-
-          if (holidayResponse.ok) {
-            const holidays = await holidayResponse.json();
-
-            const holiday = holidays.find((h: any) => {
-              const holidayDate = new Date(h.date);
-              return (
-                holidayDate.getDate() === date.getDate() &&
-                holidayDate.getMonth() === date.getMonth()
-              );
-            });
-
-            return {
-              isHoliday: true,
-              name: holiday ? holiday.name : 'Feriado'
-            };
-          }
-        } catch (holidayError) {
-          this.logger.warn(
-            `⚠️ Error obteniendo nombre del feriado: ${holidayError.message}`
-          );
-        }
-
+      const data = JSON.parse(responseText);
+      
+      // Verificar si hay feriados en la respuesta
+      if (data.response && data.response.holidays && data.response.holidays.length > 0) {
+        const holiday = data.response.holidays[0];
+        this.logger.log(`🎊 Feriado detectado: ${holiday.name} en ${countryCode}`);
         return {
           isHoliday: true,
-          name: 'Feriado'
+          name: holiday.name
         };
       }
 
       return { isHoliday: false };
-    } catch (error) {
+    } catch (error: any) {
       if (error.name === 'AbortError') {
         this.logger.warn(
           `⚠️ Timeout consultando API de feriados para ${countryCode}`
@@ -938,8 +904,6 @@ export class NotificationsService {
           `❌ Error consultando API de feriados: ${error.message}`
         );
       }
-
-      // Si la API falla, asumir que no es feriado para evitar notificaciones incorrectas
       return { isHoliday: false };
     }
   }
@@ -1150,8 +1114,10 @@ export class NotificationsService {
         return this.getSubscriptionExpiryTemplate(data);
       case 'subscription_expired':
         return this.getSubscriptionExpiredTemplate(data);
-      case 'birthday':
-        return this.getBirthdayTemplate(data);
+      case 'birthday_employee':
+        return this.getBirthdayEmployeeTemplate(data);
+      case 'birthday_company':
+        return this.getBirthdayCompanyTemplate(data);
       case 'holiday':
         return this.getHolidayTemplate(data);
       case 'scheduled_reminder':
@@ -1199,22 +1165,26 @@ export class NotificationsService {
     `;
   }
 
-  // Template para cumpleaños
-  private getBirthdayTemplate(data: any): string {
+  // Template para cumpleaños del EMPLEADO (felicitación personal)
+  private getBirthdayEmployeeTemplate(data: any): string {
     return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #e91e63;">🎉 ¡Feliz Cumpleaños!</h2>
+        <h2 style="color: #e91e63;">🎉 ¡Feliz Cumpleaños ${data.employee.first_name}!</h2>
+        <p>¡Que tengas un día maravilloso!</p>
+        <p>Te desea <strong>${data.company.legal_name}</strong></p>
+        <p style="font-size: 16px; color: #666;">¡Esperamos que disfrutes mucho tu día especial! 🎈</p>
+        <p>Saludos</p>
+      </div>
+    `;
+  }
+
+  // Template para cumpleaños de la EMPRESA (recordatorio)
+  private getBirthdayCompanyTemplate(data: any): string {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2c3e50;">🎂 Recordatorio de Cumpleaños</h2>
         <p>Hola <strong>${data.company.legal_name}</strong>,</p>
-        <p>¡Hoy es el cumpleaños de <strong>${data.employee.first_name} ${data.employee.last_name}</strong>! 🎂</p>
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <h3>🎁 Detalles del empleado:</h3>
-          <ul>
-            <li><strong>Nombre:</strong> ${data.employee.first_name} ${data.employee.last_name}</li>
-            <li><strong>Email:</strong> ${data.employee.email}</li>
-            <li><strong>Fecha de nacimiento:</strong> ${data.employee.birthdate?.toLocaleDateString?.() || 'N/A'}</li>
-          </ul>
-        </div>
-        <p>¡No olvides felicitarlo y hacer que se sienta especial en su día! 🎈</p>
+        <p>Ya enviamos un email saludando a <strong>${data.employee.first_name} ${data.employee.last_name}</strong>, para que en su día se sienta especial.</p>
         <p>Saludos,<br>Equipo HR System</p>
       </div>
     `;
@@ -1226,13 +1196,11 @@ export class NotificationsService {
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #f39c12;">🎊 Recordatorio de Feriado</h2>
         <p>Hola <strong>${data.company.legal_name}</strong>,</p>
-        <p>Te recordamos que <strong>mañana es feriado</strong>: <strong>${data.holiday.name}</strong></p>
+        <p>Te recordamos que <strong>Hoy es feriado</strong>: <strong>${data.holiday.name}</strong></p>
         <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
           <h3>📅 Información del feriado:</h3>
           <ul>
-            <li><strong>Fecha:</strong> ${data.date.toLocaleDateString()}</li>
-            <li><strong>Feriado:</strong> ${data.holiday.name}</li>
-            <li><strong>País:</strong> ${data.countryCode}</li>
+            <li>${data.holiday.name}</li>
           </ul>
         </div>
         <p>¡Que tengas un excelente día libre! 🎉</p>
