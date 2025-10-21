@@ -5,7 +5,8 @@ import {
   Body,
   Patch,
   Param,
-  Delete
+  Delete,
+  UseGuards
 } from '@nestjs/common';
 import { PlanService } from './plan.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
@@ -17,12 +18,18 @@ import {
   ApiParam,
   ApiBody
 } from '@nestjs/swagger';
+import { ClerkAuthGuard } from 'src/auth/guards/clerk.guard';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Roles } from 'src/decorators/roles.decorator';
+import { Role } from 'src/rol/enums/role.enum';
 
 @ApiTags('Planes')
 @Controller('plan')
 export class PlanController {
   constructor(private readonly planService: PlanService) {}
 
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(ClerkAuthGuard, RolesGuard)
   @Post()
   @ApiOperation({ summary: 'Crear un nuevo plan' })
   @ApiBody({ type: CreatePlanDto })
@@ -70,6 +77,8 @@ export class PlanController {
     return this.planService.findOne(id);
   }
 
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(ClerkAuthGuard, RolesGuard)
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar un plan' })
   @ApiParam({ name: 'id', description: 'ID del plan', type: 'string' })
@@ -85,6 +94,8 @@ export class PlanController {
     return this.planService.update(id, updatePlanDto);
   }
 
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(ClerkAuthGuard, RolesGuard)
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar un plan' })
   @ApiParam({ name: 'id', description: 'ID del plan', type: 'string' })

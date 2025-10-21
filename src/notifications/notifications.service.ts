@@ -68,6 +68,10 @@ export class NotificationsService {
   }
 
   private initializeSendGrid() {
+    this.logger.log(
+      `🔑 SENDGRID_API_KEY configurada: ${SENDGRID_API_KEY ? 'SÍ' : 'NO'}`
+    );
+    this.logger.log(`📧 SENDGRID_FROM configurado: ${SENDGRID_FROM || 'NO'}`);
     if (!SENDGRID_API_KEY) {
       this.logger.warn(
         'SENDGRID_API_KEY not found. Email functionality will be disabled.'
@@ -170,7 +174,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Ejecutar notificaciones programadas
-  @Cron('*/15 * * * *') // Cada 15 minutos
+  @Cron('*/59 * * * *') // Cada 59 minutos
   async executeScheduledNotifications() {
     const cronName = 'executeScheduledNotifications';
     this.logger.log(
@@ -241,7 +245,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Recordatorio de cumpleaños
-  @Cron('*/15 * * * *') // Cada 15 minutos
+  @Cron('0 9 * * *') //Cada 9:00 AM
   async checkBirthdays() {
     const cronName = 'checkBirthdays';
     this.logger.log('🎂 Verificando cumpleaños de empleados...');
@@ -272,7 +276,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Recordatorios de feriados
-  @Cron('*/15 * * * *') // Cada 15 minutos
+  @Cron('0 9 * * *') // Cada 9:00 AM
   async checkHolidays() {
     const cronName = 'checkHolidays';
     this.logger.log('🎊 Verificando feriados...');
@@ -464,7 +468,7 @@ export class NotificationsService {
 
     // Validar fecha futura y usuario
     this.validateFutureDate(scheduledDate);
-    const user = await this.findUserById(userId);
+    // const user = await this.findUserById(userId); // Variable no utilizada
 
     // Crear notificación programada
     const scheduledNotification = new ScheduledNotification();
@@ -548,7 +552,7 @@ export class NotificationsService {
     const recipients: User[] = [];
 
     switch (scheduledNotification.recipient_type) {
-      case RecipientType.ALL:
+      case RecipientType.ALL: {
         // Todos los usuarios de la empresa del creador
         const creator = await this.userRepository.findOne({
           where: { id: scheduledNotification.created_by },
@@ -562,6 +566,7 @@ export class NotificationsService {
           recipients.push(...allUsers);
         }
         break;
+      }
 
       case RecipientType.EMPLOYEES:
         // Empleados específicos
@@ -595,7 +600,6 @@ export class NotificationsService {
         }
         break;
     }
-
     return recipients;
   }
 
@@ -787,21 +791,26 @@ export class NotificationsService {
     );
   }
 
-  // 🎊 Verificar feriados por país usando API
+  // 🎊 Verificar feriados por país usando API y fallback hardcodeado
   private async checkCompanyHolidays(company: Company, date: Date) {
     try {
       // Obtener el país de la empresa (por defecto AR si no está configurado)
       const countryCode = company.country || 'AR';
 
-      // Consultar API de feriados
-      const isHoliday = await this.checkHolidayAPI(countryCode, date);
+      // Primero intentar con API externa
+      let isHoliday = await this.checkHolidayAPI(countryCode, date);
+
+      // Si la API falla, usar feriados hardcodeados como fallback
+      if (!isHoliday.isHoliday) {
+        isHoliday = this.checkHardcodedHolidays(countryCode, date);
+      }
 
       if (isHoliday.isHoliday) {
         this.logger.log(
           `🎊 ${date.toDateString()} es feriado en ${countryCode}: ${isHoliday.name}`
         );
 
-        // Crear notificación en BD
+        // Crear notificación en BD para la empresa
         await this.createNotification(
           company.id,
           '🎊 Recordatorio de feriado',
@@ -809,7 +818,32 @@ export class NotificationsService {
           'holiday_reminder' as NotificationType
         );
 
-        // Enviar email
+        // Crear notificación en BD para todos los usuarios de la empresa
+        try {
+          const companyUsers = await this.userRepository.find({
+            where: { company: { id: company.id } }
+          });
+
+          for (const user of companyUsers) {
+            await this.createNotification(
+              user.id,
+              '🎊 Recordatorio de feriado',
+              `Mañana es feriado: ${isHoliday.name}`,
+              'holiday_reminder' as NotificationType
+            );
+          }
+
+          this.logger.log(
+            `📝 Notificaciones de feriado creadas para ${companyUsers.length} usuarios de ${company.legal_name}`
+          );
+        } catch (error) {
+          this.logger.error(
+            `❌ Error creando notificaciones de feriado para usuarios:`,
+            error
+          );
+        }
+
+        // Enviar email a la empresa
         const subject = `🎊 Recordatorio de feriado: ${isHoliday.name}`;
 
         try {
@@ -824,7 +858,47 @@ export class NotificationsService {
           );
         } catch (error) {
           this.logger.error(
-            `❌ Error enviando notificación de feriado:`,
+            `❌ Error enviando notificación de feriado a empresa:`,
+            error
+          );
+        }
+
+        // Enviar email a todos los empleados de la empresa
+        try {
+          const employees = await this.employeeRepository.find({
+            where: { company: { id: company.id } },
+            relations: ['user']
+          });
+
+          for (const employee of employees) {
+            if (employee.email) {
+              try {
+                await this.sendNotificationEmail(
+                  employee.email,
+                  subject,
+                  'holiday',
+                  {
+                    company,
+                    holiday: isHoliday,
+                    date,
+                    countryCode,
+                    employee
+                  }
+                );
+                this.logger.log(
+                  `🎊 Email de feriado enviado a empleado ${employee.first_name} ${employee.last_name} (${employee.email})`
+                );
+              } catch (error) {
+                this.logger.error(
+                  `❌ Error enviando email de feriado a empleado ${employee.email}:`,
+                  error
+                );
+              }
+            }
+          }
+        } catch (error) {
+          this.logger.error(
+            `❌ Error obteniendo empleados para envío de feriado:`,
             error
           );
         }
@@ -841,7 +915,7 @@ export class NotificationsService {
     }
   }
 
-  // 🌐 Consultar API de feriados
+  // 🌐 Consultar API de feriados - OpenHolidays API (gratuita y confiable)
   private async checkHolidayAPI(
     countryCode: string,
     date: Date
@@ -852,8 +926,44 @@ export class NotificationsService {
       const day = String(date.getDate()).padStart(2, '0');
       const dateString = `${year}-${month}-${day}`;
 
-      // Usar calendarific.com que soporta Guatemala y muchos más países
-      const apiUrl = `https://calendarific.com/api/v2/holidays?api_key=CALENDARY_FIC&country=${countryCode}&year=${year}&month=${month}&day=${day}`;
+      // Mapear nombres de países a códigos ISO (company.country viene como nombre, no código)
+      const countryMapping: { [key: string]: string } = {
+        argentina: 'AR',
+        guatemala: 'GT',
+        mexico: 'MX',
+        méxico: 'MX',
+        chile: 'CL',
+        colombia: 'CO',
+        peru: 'PE',
+        perú: 'PE',
+        brasil: 'BR',
+        brazil: 'BR',
+        uruguay: 'UY',
+        paraguay: 'PY',
+        bolivia: 'BO',
+        ecuador: 'EC',
+        venezuela: 'VE',
+        'costa rica': 'CR',
+        panama: 'PA',
+        panamá: 'PA',
+        honduras: 'HN',
+        'el salvador': 'SV',
+        nicaragua: 'NI',
+        hungria: 'HU',
+        hungary: 'HU',
+        libia: 'LY',
+        libya: 'LY'
+      };
+
+      const isoCode =
+        countryMapping[countryCode.toLowerCase()] || countryCode.toUpperCase();
+
+      // OpenHolidays API
+      const apiUrl = `https://openholidaysapi.org/PublicHolidays?countryIsoCode=${isoCode}&languageIsoCode=es&validFrom=${dateString}&validTo=${dateString}`;
+
+      this.logger.log(
+        `🌐 Consultando OpenHolidays API para ${isoCode} (${countryCode}) - ${dateString}`
+      );
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -870,42 +980,107 @@ export class NotificationsService {
 
       if (!response.ok) {
         this.logger.warn(
-          `⚠️ API de feriados respondió con status ${response.status} para ${countryCode}`
+          `⚠️ OpenHolidays API respondió con status ${response.status} para ${isoCode} (${countryCode})`
         );
         return { isHoliday: false };
       }
 
       const responseText = await response.text();
       if (!responseText || responseText.trim() === '') {
-        this.logger.warn(`⚠️ API de feriados devolvió respuesta vacía`);
+        this.logger.warn(`⚠️ OpenHolidays API devolvió respuesta vacía`);
         return { isHoliday: false };
       }
 
       const data = JSON.parse(responseText);
-      
-      // Verificar si hay feriados en la respuesta
-      if (data.response && data.response.holidays && data.response.holidays.length > 0) {
-        const holiday = data.response.holidays[0];
-        this.logger.log(`🎊 Feriado detectado: ${holiday.name} en ${countryCode}`);
+
+      // OpenHolidays devuelve un array directo de feriados
+      if (Array.isArray(data) && data.length > 0) {
+        const holiday = data[0];
+        this.logger.log(
+          `🎊 Feriado detectado: ${holiday.name} en ${isoCode} (${countryCode})`
+        );
         return {
           isHoliday: true,
           name: holiday.name
         };
       }
 
+      this.logger.log(
+        `📅 ${dateString} no es feriado en ${isoCode} (${countryCode})`
+      );
       return { isHoliday: false };
     } catch (error: any) {
       if (error.name === 'AbortError') {
         this.logger.warn(
-          `⚠️ Timeout consultando API de feriados para ${countryCode}`
+          `⚠️ Timeout consultando OpenHolidays API para ${countryCode}`
         );
       } else {
         this.logger.error(
-          `❌ Error consultando API de feriados: ${error.message}`
+          `❌ Error consultando OpenHolidays API: ${error.message}`
         );
       }
       return { isHoliday: false };
     }
+  }
+
+  // 🗓️ Feriados hardcodeados como fallback (para presentación)
+  private checkHardcodedHolidays(
+    countryCode: string,
+    date: Date
+  ): { isHoliday: boolean; name?: string } {
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const dateString = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+
+    // Feriados hardcodeados para países específicos
+    const hardcodedHolidays: { [key: string]: { [key: string]: string } } = {
+      Hungría: {
+        '2025-10-23':
+          'Día de la República de Hungría y Día de la Revolución de 1956' // Jueves 23 de octubre
+      },
+      hungria: {
+        '2025-10-23':
+          'Día de la República de Hungría y Día de la Revolución de 1956'
+      },
+      Libia: {
+        '2025-10-23': 'Día de la Liberación de Libia' // Jueves 23 de octubre
+      },
+      libia: {
+        '2025-10-23': 'Día de la Liberación de Libia'
+      },
+      Burundi: {
+        '2025-10-21': 'Día de Ndadaye (Melchior Ndadaye Day)' // Martes 21 de octubre
+      },
+      burundi: {
+        '2025-10-21': 'Día de Ndadaye (Melchior Ndadaye Day)'
+      }
+    };
+
+    this.logger.log(
+      `🔍 Verificando feriados hardcodeados para: ${countryCode} en fecha: ${dateString}`
+    );
+
+    const countryHolidays = hardcodedHolidays[countryCode];
+    this.logger.log(
+      `🔍 Feriados disponibles para ${countryCode}:`,
+      countryHolidays
+    );
+
+    if (countryHolidays && countryHolidays[dateString]) {
+      this.logger.log(
+        `🗓️ Feriado hardcodeado detectado: ${countryHolidays[dateString]} en ${countryCode}`
+      );
+      return {
+        isHoliday: true,
+        name: countryHolidays[dateString]
+      };
+    }
+
+    this.logger.log(
+      `❌ No se encontró feriado hardcodeado para ${countryCode} en ${dateString}`
+    );
+    return { isHoliday: false };
   }
 
   // Crear notificación en BD
@@ -996,25 +1171,9 @@ export class NotificationsService {
     return await this.notificationRepository.save(notification);
   }
 
-  // Marcar todas como leídas
-  async markAllAsRead(userId: string) {
-    await this.notificationRepository.update(
-      { user_id: userId, is_read: false },
-      { is_read: true }
-    );
-  }
-
-  // Eliminar todas las notificaciones
-  async deleteAll(userId: string) {
-    await this.notificationRepository.update(
-      { user_id: userId, is_deleted: false },
-      { is_deleted: true }
-    );
-  }
-
   // Obtener configuración de notificaciones
   async getNotificationConfig(userId: string) {
-    const user = await this.findUserById(userId);
+    // const user = await this.findUserById(userId); // Variable no utilizada
 
     let config = await this.configRepository.findOne({
       where: { user_id: userId }
@@ -1038,7 +1197,7 @@ export class NotificationsService {
     userId: string,
     configData: UpdateNotificationConfigDto
   ) {
-    const user = await this.findUserById(userId);
+    // const user = await this.findUserById(userId); // Variable no utilizada
 
     let config = await this.configRepository.findOne({
       where: { user_id: userId }
@@ -1168,12 +1327,30 @@ export class NotificationsService {
   // Template para cumpleaños del EMPLEADO (felicitación personal)
   private getBirthdayEmployeeTemplate(data: any): string {
     return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #e91e63;">🎉 ¡Feliz Cumpleaños ${data.employee.first_name}!</h2>
-        <p>¡Que tengas un día maravilloso!</p>
-        <p>Te desea <strong>${data.company.legal_name}</strong></p>
-        <p style="font-size: 16px; color: #666;">¡Esperamos que disfrutes mucho tu día especial! 🎈</p>
-        <p>Saludos</p>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #e91e63; font-size: 32px; font-weight: bold; margin: 0; display: flex; align-items: center; justify-content: center; gap: 10px;">
+            🎉 ¡Feliz Cumpleaños ${data.employee.first_name}! 🎂
+          </h1>
+        </div>
+        <div style="background: linear-gradient(135deg, #ff6b6b, #feca57); padding: 40px; border-radius: 15px; margin: 30px 0; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+          <h2 style="color: white; font-size: 28px; font-weight: bold; margin: 0 0 15px 0;">
+            ¡Que tengas un día maravilloso!
+          </h2>
+          <p style="color: white; font-size: 20px; margin: 0; font-weight: 500;">
+            Te desea <strong>${data.company.legal_name}</strong>
+          </p>
+        </div>
+        <div style="text-align: center; margin: 30px 0;">
+          <p style="font-size: 18px; color: #333; margin: 0;">
+            ¡Esperamos que disfrutes mucho tu día especial! 🎈
+          </p>
+        </div>
+        <div style="text-align: center; margin-top: 30px;">
+          <p style="color: #999; font-size: 16px; margin: 0;">
+            Saludos
+          </p>
+        </div>
       </div>
     `;
   }
@@ -1181,30 +1358,76 @@ export class NotificationsService {
   // Template para cumpleaños de la EMPRESA (recordatorio)
   private getBirthdayCompanyTemplate(data: any): string {
     return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #2c3e50;">🎂 Recordatorio de Cumpleaños</h2>
-        <p>Hola <strong>${data.company.legal_name}</strong>,</p>
-        <p>Ya enviamos un email saludando a <strong>${data.employee.first_name} ${data.employee.last_name}</strong>, para que en su día se sienta especial.</p>
-        <p>Saludos,<br>Equipo HR System</p>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #2c3e50; font-size: 28px; font-weight: bold; margin: 0; display: flex; align-items: center; justify-content: center; gap: 10px;">
+            🎂 Recordatorio de Cumpleaños
+          </h1>
+        </div>
+        <div style="background: linear-gradient(135deg, #3498db, #2980b9); padding: 40px; border-radius: 15px; margin: 30px 0; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+          <h2 style="color: white; font-size: 24px; font-weight: bold; margin: 0 0 15px 0;">
+            Hoy es el cumpleaños de <strong>${data.employee.first_name}</strong>
+          </h2>
+          <p style="color: white; font-size: 18px; margin: 0; font-weight: 500;">
+            Ya enviamos un email saludando a <strong>${data.employee.first_name}</strong>, para que en su día se sienta especial.
+          </p>
+        </div>
+        <div style="text-align: center; margin: 30px 0;">
+          <p style="font-size: 16px; color: #333; margin: 0;">
+            ¡No olvides felicitarlo personalmente también! 🎈
+          </p>
+        </div>
+        <div style="text-align: center; margin-top: 30px;">
+          <p style="color: #999; font-size: 16px; margin: 0;">
+            Saludos,<br>Equipo HR System
+          </p>
+        </div>
       </div>
     `;
   }
 
-  // Template para feriados
+  // Template para feriados (funciona para empresa y empleados)
   private getHolidayTemplate(data: any): string {
+    // Determinar el destinatario
+    const isEmployee = data.employee && data.employee.first_name;
+    const recipientName = isEmployee
+      ? data.employee.first_name
+      : data.company.legal_name;
+    const greeting = `Hola ${recipientName}`;
+
     return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #f39c12;">🎊 Recordatorio de Feriado</h2>
-        <p>Hola <strong>${data.company.legal_name}</strong>,</p>
-        <p>Te recordamos que <strong>Hoy es feriado</strong>: <strong>${data.holiday.name}</strong></p>
-        <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
-          <h3>📅 Información del feriado:</h3>
-          <ul>
-            <li>${data.holiday.name}</li>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #f39c12; font-size: 32px; font-weight: bold; margin: 0; display: flex; align-items: center; justify-content: center; gap: 10px;">
+            🎊 ¡Recordatorio de Feriado! 🎉
+          </h1>
+        </div>
+        <div style="background: linear-gradient(135deg, #f39c12, #e67e22); padding: 40px; border-radius: 15px; margin: 30px 0; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+          <h2 style="color: white; font-size: 24px; font-weight: bold; margin: 0 0 15px 0;">
+            ${greeting}
+          </h2>
+          <p style="color: white; font-size: 18px; margin: 0; font-weight: 500;">
+            Hoy es feriado: 
+          </p>
+        </div>    
+        <div style="background: #f8f9fa; padding: 25px; border-radius: 10px; margin: 30px 0; border-left: 4px solid #f39c12;">
+          <h3 style="color: #2c3e50; margin: 0 0 15px 0; font-size: 18px;">📅 Detalles del dia:</h3>
+          <ul style="margin: 0; padding-left: 20px; color: #555;">
+            <li><strong>Nombre:</strong> ${data.holiday.name}</li>
+            <li><strong>Fecha:</strong> ${data.date ? data.date.toLocaleDateString() : 'N/A'}</li>
+            <li><strong>País:</strong> ${data.countryCode}</li>
           </ul>
         </div>
-        <p>¡Que tengas un excelente día libre! 🎉</p>
-        <p>Saludos,<br>Equipo HR System</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <p style="font-size: 18px; color: #333; margin: 0;">
+            ¡Que tengas un excelente día libre! 🎈
+          </p>
+        </div>
+        <div style="text-align: center; margin-top: 30px;">
+          <p style="color: #999; font-size: 16px; margin: 0;">
+            Saludos,<br>Equipo HR System
+          </p>
+        </div>
       </div>
     `;
   }

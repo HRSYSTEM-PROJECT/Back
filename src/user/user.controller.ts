@@ -61,6 +61,7 @@ export class UserController {
     return this.userService.create(createUserDto, req.user);
   }
 
+  @UseGuards(ClerkAuthGuard)
   @Get()
   @ApiOperation({
     summary: 'Obtener todos los usuarios',
@@ -101,6 +102,7 @@ export class UserController {
     return this.userService.findAllByCompany(companyId);
   }
 
+  @UseGuards(ClerkAuthGuard)
   @Get(':id')
   @ApiOperation({
     summary: 'Obtener usuario por ID',
