@@ -121,49 +121,6 @@ export class NotificationsController {
     return this.notificationsService.remove(userId, notificationId);
   }
 
-  @Post('mark-all-read')
-  @ApiOperation({ summary: 'Marcar todas las notificaciones como leídas' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        userId: {
-          type: 'string',
-          example: '123e4567-e89b-12d3-a456-426614174000'
-        }
-      },
-      required: ['userId']
-    }
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Todas las notificaciones marcadas como leídas'
-  })
-  async markAllAsRead(@Body('userId') userId: string) {
-    return this.notificationsService.markAllAsRead(userId);
-  }
-
-  @Delete('delete-all')
-  @ApiOperation({ summary: 'Eliminar todas las notificaciones' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        userId: {
-          type: 'string',
-          example: '123e4567-e89b-12d3-a456-426614174000'
-        }
-      },
-      required: ['userId']
-    }
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Todas las notificaciones eliminadas'
-  })
-  async deleteAllNotifications(@Body('userId') userId: string) {
-    return this.notificationsService.deleteAll(userId);
-  }
 
   @Get('config')
   @ApiOperation({ summary: 'Obtener configuración de notificaciones' })
