@@ -68,6 +68,10 @@ export class NotificationsService {
   }
 
   private initializeSendGrid() {
+    this.logger.log(
+      `🔑 SENDGRID_API_KEY configurada: ${SENDGRID_API_KEY ? 'SÍ' : 'NO'}`
+    );
+    this.logger.log(`📧 SENDGRID_FROM configurado: ${SENDGRID_FROM || 'NO'}`);
     if (!SENDGRID_API_KEY) {
       this.logger.warn(
         'SENDGRID_API_KEY not found. Email functionality will be disabled.'
@@ -853,39 +857,42 @@ export class NotificationsService {
 
       // Mapear nombres de países a códigos ISO (company.country viene como nombre, no código)
       const countryMapping: { [key: string]: string } = {
-        'argentina': 'AR',
-        'guatemala': 'GT', 
-        'mexico': 'MX',
-        'méxico': 'MX',
-        'chile': 'CL',
-        'colombia': 'CO',
-        'peru': 'PE',
-        'perú': 'PE',
-        'brasil': 'BR',
-        'brazil': 'BR',
-        'uruguay': 'UY',
-        'paraguay': 'PY',
-        'bolivia': 'BO',
-        'ecuador': 'EC',
-        'venezuela': 'VE',
+        argentina: 'AR',
+        guatemala: 'GT',
+        mexico: 'MX',
+        méxico: 'MX',
+        chile: 'CL',
+        colombia: 'CO',
+        peru: 'PE',
+        perú: 'PE',
+        brasil: 'BR',
+        brazil: 'BR',
+        uruguay: 'UY',
+        paraguay: 'PY',
+        bolivia: 'BO',
+        ecuador: 'EC',
+        venezuela: 'VE',
         'costa rica': 'CR',
-        'panama': 'PA',
-        'panamá': 'PA',
-        'honduras': 'HN',
+        panama: 'PA',
+        panamá: 'PA',
+        honduras: 'HN',
         'el salvador': 'SV',
-        'nicaragua': 'NI',
-        'hungria': 'HU',
-        'hungary': 'HU',
-        'libia': 'LY',
-        'libya': 'LY'
+        nicaragua: 'NI',
+        hungria: 'HU',
+        hungary: 'HU',
+        libia: 'LY',
+        libya: 'LY'
       };
 
-      const isoCode = countryMapping[countryCode.toLowerCase()] || countryCode.toUpperCase();
-      
+      const isoCode =
+        countryMapping[countryCode.toLowerCase()] || countryCode.toUpperCase();
+
       // OpenHolidays API - No requiere API key, completamente gratuita
       const apiUrl = `https://openholidaysapi.org/PublicHolidays?countryIsoCode=${isoCode}&languageIsoCode=es&validFrom=${dateString}&validTo=${dateString}`;
 
-      this.logger.log(`🌐 Consultando OpenHolidays API para ${isoCode} (${countryCode}) - ${dateString}`);
+      this.logger.log(
+        `🌐 Consultando OpenHolidays API para ${isoCode} (${countryCode}) - ${dateString}`
+      );
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -918,14 +925,18 @@ export class NotificationsService {
       // OpenHolidays devuelve un array directo de feriados
       if (Array.isArray(data) && data.length > 0) {
         const holiday = data[0];
-        this.logger.log(`🎊 Feriado detectado: ${holiday.name} en ${isoCode} (${countryCode})`);
+        this.logger.log(
+          `🎊 Feriado detectado: ${holiday.name} en ${isoCode} (${countryCode})`
+        );
         return {
           isHoliday: true,
           name: holiday.name
         };
       }
 
-      this.logger.log(`📅 ${dateString} no es feriado en ${isoCode} (${countryCode})`);
+      this.logger.log(
+        `📅 ${dateString} no es feriado en ${isoCode} (${countryCode})`
+      );
       return { isHoliday: false };
     } catch (error: any) {
       if (error.name === 'AbortError') {
@@ -1028,7 +1039,6 @@ export class NotificationsService {
     notification.is_deleted = true;
     return await this.notificationRepository.save(notification);
   }
-
 
   // Obtener configuración de notificaciones
   async getNotificationConfig(userId: string) {
