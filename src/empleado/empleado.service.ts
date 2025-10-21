@@ -157,9 +157,9 @@ export class EmpleadoService {
   async findAll(
     user: AuthenticatedUser
   ): Promise<(Employee & { age?: number })[]> {
-    if (!user.companyId || !isUuid(user.companyId)) {
-  throw new Error('Invalid companyId');
-}
+   if (!user.companyId || user.companyId.trim() === '') {
+      throw new NotFoundException('Usuario sin empresa asignada');
+    }
     const employees = await this.employeeRepository.find({
       where: { company: { id: user.companyId } },
       relations: ['company', 'department']
