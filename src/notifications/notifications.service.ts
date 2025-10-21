@@ -809,7 +809,7 @@ export class NotificationsService {
           `🎊 ${date.toDateString()} es feriado en ${countryCode}: ${isHoliday.name}`
         );
 
-        // Crear notificación en BD
+        // Crear notificación en BD para la empresa
         await this.createNotification(
           company.id,
           '🎊 Recordatorio de feriado',
@@ -817,7 +817,32 @@ export class NotificationsService {
           'holiday_reminder' as NotificationType
         );
 
-        // Enviar email
+        // Crear notificación en BD para todos los usuarios de la empresa
+        try {
+          const companyUsers = await this.userRepository.find({
+            where: { company: { id: company.id } }
+          });
+
+          for (const user of companyUsers) {
+            await this.createNotification(
+              user.id,
+              '🎊 Recordatorio de feriado',
+              `Mañana es feriado: ${isHoliday.name}`,
+              'holiday_reminder' as NotificationType
+            );
+          }
+
+          this.logger.log(
+            `📝 Notificaciones de feriado creadas para ${companyUsers.length} usuarios de ${company.legal_name}`
+          );
+        } catch (error) {
+          this.logger.error(
+            `❌ Error creando notificaciones de feriado para usuarios:`,
+            error
+          );
+        }
+
+        // Enviar email a la empresa
         const subject = `🎊 Recordatorio de feriado: ${isHoliday.name}`;
 
         try {
@@ -832,7 +857,47 @@ export class NotificationsService {
           );
         } catch (error) {
           this.logger.error(
-            `❌ Error enviando notificación de feriado:`,
+            `❌ Error enviando notificación de feriado a empresa:`,
+            error
+          );
+        }
+
+        // Enviar email a todos los empleados de la empresa
+        try {
+          const employees = await this.employeeRepository.find({
+            where: { company: { id: company.id } },
+            relations: ['user']
+          });
+
+          for (const employee of employees) {
+            if (employee.email) {
+              try {
+                await this.sendNotificationEmail(
+                  employee.email,
+                  subject,
+                  'holiday',
+                  {
+                    company,
+                    holiday: isHoliday,
+                    date,
+                    countryCode,
+                    employee
+                  }
+                );
+                this.logger.log(
+                  `🎊 Email de feriado enviado a empleado ${employee.first_name} ${employee.last_name} (${employee.email})`
+                );
+              } catch (error) {
+                this.logger.error(
+                  `❌ Error enviando email de feriado a empleado ${employee.email}:`,
+                  error
+                );
+              }
+            }
+          }
+        } catch (error) {
+          this.logger.error(
+            `❌ Error obteniendo empleados para envío de feriado:`,
             error
           );
         }
@@ -1320,21 +1385,50 @@ export class NotificationsService {
     `;
   }
 
-  // Template para feriados
+  // Template para feriados (funciona para empresa y empleados)
   private getHolidayTemplate(data: any): string {
+    // Determinar el destinatario
+    const isEmployee = data.employee && data.employee.first_name;
+    const recipientName = isEmployee
+      ? data.employee.first_name
+      : data.company.legal_name;
+    const greeting = isEmployee
+      ? `Hola ${recipientName}`
+      : `Hola ${recipientName}`;
+
     return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #f39c12;">🎊 Recordatorio de Feriado</h2>
-        <p>Hola <strong>${data.company.legal_name}</strong>,</p>
-        <p>Te recordamos que <strong>Hoy es feriado</strong>: <strong>${data.holiday.name}</strong></p>
-        <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
-          <h3>📅 Información del feriado:</h3>
-          <ul>
-            <li>${data.holiday.name}</li>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #f39c12; font-size: 32px; font-weight: bold; margin: 0; display: flex; align-items: center; justify-content: center; gap: 10px;">
+            🎊 ¡Recordatorio de Feriado! 🎉
+          </h1>
+        </div>
+        <div style="background: linear-gradient(135deg, #f39c12, #e67e22); padding: 40px; border-radius: 15px; margin: 30px 0; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+          <h2 style="color: white; font-size: 24px; font-weight: bold; margin: 0 0 15px 0;">
+            ${greeting}
+          </h2>
+          <p style="color: white; font-size: 18px; margin: 0; font-weight: 500;">
+            Hoy es feriado: 
+          </p>
+        </div>    
+        <div style="background: #f8f9fa; padding: 25px; border-radius: 10px; margin: 30px 0; border-left: 4px solid #f39c12;">
+          <h3 style="color: #2c3e50; margin: 0 0 15px 0; font-size: 18px;">📅 Detalles del feriado:</h3>
+          <ul style="margin: 0; padding-left: 20px; color: #555;">
+            <li><strong>Nombre:</strong> ${data.holiday.name}</li>
+            <li><strong>Fecha:</strong> ${data.date.toLocaleDateString()}</li>
+            <li><strong>País:</strong> ${data.countryCode}</li>
           </ul>
         </div>
-        <p>¡Que tengas un excelente día libre! 🎉</p>
-        <p>Saludos,<br>Equipo HR System</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <p style="font-size: 18px; color: #333; margin: 0;">
+            ¡Que tengas un excelente día libre! 🎈
+          </p>
+        </div>
+        <div style="text-align: center; margin-top: 30px;">
+          <p style="color: #999; font-size: 16px; margin: 0;">
+            Saludos,<br>Equipo HR System
+          </p>
+        </div>
       </div>
     `;
   }
