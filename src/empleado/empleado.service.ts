@@ -112,52 +112,45 @@ export class EmpleadoService {
 
   //refactor con cloudinary
   async create(
-    createEmployeeDto: CreateEmployeeDto,
-    user: AuthenticatedUser,
-    file?: Express.Multer.File
-  ): Promise<Employee> {
-    const company = await this.companiesRepository.findOne({
-      where: { id: user.companyId }
-    });
-    if (!company) throw new NotFoundException('Company not found.');
+  createEmployeeDto: CreateEmployeeDto,
+  user: AuthenticatedUser
+): Promise<Employee> {
+  const company = await this.companiesRepository.findOne({
+    where: { id: user.companyId }
+  });
+  if (!company) throw new NotFoundException('Company not found.');
 
-    const department = await this.departmentsRepository.findOne({
-      where: { id: createEmployeeDto.department_id }
-    });
-    if (!department) throw new NotFoundException('Department not found.');
+  const department = await this.departmentsRepository.findOne({
+    where: { id: createEmployeeDto.department_id }
+  });
+  if (!department) throw new NotFoundException('Department not found.');
 
-    const position = await this.positionsRepository.findOne({
-      where: { id: createEmployeeDto.position_id }
-    });
-    if (!position) throw new NotFoundException('Position not found.');
+  const position = await this.positionsRepository.findOne({
+    where: { id: createEmployeeDto.position_id }
+  });
+  if (!position) throw new NotFoundException('Position not found.');
 
-    let imageUrl = createEmployeeDto.imgUrl;
-    if (file) {
-      imageUrl = await this.uploadService.uploadImage(file); // sube a Cloudinary
-    }
+  const employee = this.employeeRepository.create({
+    ...createEmployeeDto,
+    company,
+    department,
+    position
+  });
 
-    const employee = this.employeeRepository.create({
-      ...createEmployeeDto,
-      company,
-      department,
-      position,
-      imgUrl: imageUrl
-    });
+  const savedEmployee = await this.employeeRepository.save(employee);
 
-    const savedEmployee = await this.employeeRepository.save(employee);
-
-    try {
-      await this.notificationsService.notifyEmployeeAdded(
-        user.companyId,
-        `${savedEmployee.first_name} ${savedEmployee.last_name}`,
-        savedEmployee.position?.name || 'Empleado'
-      );
-    } catch (err) {
-      console.error('Error enviando notificación:', err);
-    }
-
-    return savedEmployee;
+  try {
+    await this.notificationsService.notifyEmployeeAdded(
+      user.companyId,
+      `${savedEmployee.first_name} ${savedEmployee.last_name}`,
+      savedEmployee.position?.name || 'Empleado'
+    );
+  } catch (err) {
+    console.error('Error enviando notificación:', err);
   }
+
+  return savedEmployee;
+}
 
   // ---- Listar todos ----
   async findAll(

@@ -30,65 +30,51 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { UseInterceptors } from '@nestjs/common';
 import { UploadedFile } from '@nestjs/common';
+import { UploadService } from 'src/upload/upload.service';
 
 @ApiTags('Empleado')
 @UseGuards(ClerkAuthGuard) // 👈 aplica el guard a TODO el controller
 @Controller('empleado')
 export class EmpleadoController {
-  constructor(private readonly empleadoService: EmpleadoService) {}
+  constructor(private readonly empleadoService: EmpleadoService,
+    private readonly uploadService: UploadService
+  ) {}
 
-  // // ✅ Crear empleado
-  // @Post()
-  // @ApiOperation({
-  //   summary: 'Crear nuevo empleado',
-  //   description:
-  //     'Registra un nuevo empleado en el sistema. La empresa se obtiene automáticamente del usuario autenticado.'
-  // })
-  // @ApiBody({ type: CreateEmployeeDto })
-  // @ApiResponse({ status: 201, description: 'Empleado creado exitosamente' })
-  // // async create(@AuthUser() user: any, @Body() dto: CreateEmployeeDto) {
-  // //   return this.empleadoService.create(dto, user);
-  // async create(@Req() req: AuthRequest, @Body() dto: CreateEmployeeDto) {
-  //   return this.empleadoService.create(dto, req.user);
-  // }
-
+  
+  //otro refactor para imgUrl
   @Post()
-  @ApiOperation({
-    summary: 'Crear nuevo empleado',
-    description:
-      'Registra un nuevo empleado en el sistema. La empresa se obtiene automáticamente del usuario autenticado.'
-  })
-  @ApiBody({ type: CreateEmployeeDto })
-  @ApiResponse({ status: 201, description: 'Empleado creado exitosamente' })
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: memoryStorage(),
-      limits: { fileSize: 5 * 1024 * 1024 },
-      fileFilter: (req, file, cb) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
-          return cb(new Error('Solo se permiten imágenes'), false);
-        }
-        cb(null, true);
-      }
-    })
-  )
-  @UseInterceptors(FileInterceptor('file', {
+@ApiOperation({
+  summary: 'Crear nuevo empleado',
+  description:
+    'Registra un nuevo empleado en el sistema. La empresa se obtiene automáticamente del usuario autenticado.'
+})
+@ApiBody({ type: CreateEmployeeDto })
+@ApiResponse({ status: 201, description: 'Empleado creado exitosamente' })
+@UseInterceptors(
+  FileInterceptor('file', {
     storage: memoryStorage(),
-   limits: { fileSize: 500 * 1024 },
+    limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
       if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
         return cb(new Error('Solo se permiten imágenes'), false);
       }
       cb(null, true);
-    },
-  }))
-  async create(
-    @Req() req: AuthRequest,
-    @Body() dto: CreateEmployeeDto,
-    @UploadedFile() file: Express.Multer.File
-  ) {
-    return this.empleadoService.create(dto, req.user, file);
+    }
+  })
+)
+async create(
+  @Req() req: AuthRequest,
+  @Body() dto: CreateEmployeeDto,
+  @UploadedFile() file: Express.Multer.File
+) {
+  if (file) {
+    const imageUrl = await this.uploadService.uploadImage(file);
+    dto.imgUrl = imageUrl;
   }
+
+  return this.empleadoService.create(dto, req.user);
+}
+
 
   // ✅ Obtener todos los empleados
   @Get()
