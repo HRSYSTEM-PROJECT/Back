@@ -18,6 +18,7 @@ import { Company } from 'src/empresa/entities/empresa.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UploadService } from '../upload/upload.service';
 import { MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
+import { validate as IsUUID } from 'uuid';
 
 @Injectable()
 export class EmpleadoService {
@@ -156,6 +157,9 @@ export class EmpleadoService {
   async findAll(
     user: AuthenticatedUser
   ): Promise<(Employee & { age?: number })[]> {
+    if (!user.companyId || !isUuid(user.companyId)) {
+  throw new Error('Invalid companyId');
+}
     const employees = await this.employeeRepository.find({
       where: { company: { id: user.companyId } },
       relations: ['company', 'department']
