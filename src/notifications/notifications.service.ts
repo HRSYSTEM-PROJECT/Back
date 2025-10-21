@@ -840,7 +840,7 @@ export class NotificationsService {
     }
   }
 
-  // 🌐 Consultar API de feriados
+  // 🌐 Consultar API de feriados - OpenHolidays API (gratuita y confiable)
   private async checkHolidayAPI(
     countryCode: string,
     date: Date
@@ -851,10 +851,41 @@ export class NotificationsService {
       const day = String(date.getDate()).padStart(2, '0');
       const dateString = `${year}-${month}-${day}`;
 
-      // Usar calendarific.com que soporta Guatemala y muchos más países
-      const apiKey = process.env.CALENDARIFIC_API_KEY || 'YOUR_API_KEY';
-      this.logger.log(`🔑 API Key configurada: ${apiKey.substring(0, 10)}...`); // Log para debug
-      const apiUrl = `https://calendarific.com/api/v2/holidays?api_key=${apiKey}&country=${countryCode}&year=${year}&month=${month}&day=${day}`;
+      // Mapear nombres de países a códigos ISO (company.country viene como nombre, no código)
+      const countryMapping: { [key: string]: string } = {
+        'argentina': 'AR',
+        'guatemala': 'GT', 
+        'mexico': 'MX',
+        'méxico': 'MX',
+        'chile': 'CL',
+        'colombia': 'CO',
+        'peru': 'PE',
+        'perú': 'PE',
+        'brasil': 'BR',
+        'brazil': 'BR',
+        'uruguay': 'UY',
+        'paraguay': 'PY',
+        'bolivia': 'BO',
+        'ecuador': 'EC',
+        'venezuela': 'VE',
+        'costa rica': 'CR',
+        'panama': 'PA',
+        'panamá': 'PA',
+        'honduras': 'HN',
+        'el salvador': 'SV',
+        'nicaragua': 'NI',
+        'hungria': 'HU',
+        'hungary': 'HU',
+        'libia': 'LY',
+        'libya': 'LY'
+      };
+
+      const isoCode = countryMapping[countryCode.toLowerCase()] || countryCode.toUpperCase();
+      
+      // OpenHolidays API - No requiere API key, completamente gratuita
+      const apiUrl = `https://openholidaysapi.org/PublicHolidays?countryIsoCode=${isoCode}&languageIsoCode=es&validFrom=${dateString}&validTo=${dateString}`;
+
+      this.logger.log(`🌐 Consultando OpenHolidays API para ${isoCode} (${countryCode}) - ${dateString}`);
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -871,38 +902,39 @@ export class NotificationsService {
 
       if (!response.ok) {
         this.logger.warn(
-          `⚠️ API de feriados respondió con status ${response.status} para ${countryCode}`
+          `⚠️ OpenHolidays API respondió con status ${response.status} para ${isoCode} (${countryCode})`
         );
         return { isHoliday: false };
       }
 
       const responseText = await response.text();
       if (!responseText || responseText.trim() === '') {
-        this.logger.warn(`⚠️ API de feriados devolvió respuesta vacía`);
+        this.logger.warn(`⚠️ OpenHolidays API devolvió respuesta vacía`);
         return { isHoliday: false };
       }
 
       const data = JSON.parse(responseText);
-      
-      // Verificar si hay feriados en la respuesta
-      if (data.response && data.response.holidays && data.response.holidays.length > 0) {
-        const holiday = data.response.holidays[0];
-        this.logger.log(`🎊 Feriado detectado: ${holiday.name} en ${countryCode}`);
+
+      // OpenHolidays devuelve un array directo de feriados
+      if (Array.isArray(data) && data.length > 0) {
+        const holiday = data[0];
+        this.logger.log(`🎊 Feriado detectado: ${holiday.name} en ${isoCode} (${countryCode})`);
         return {
           isHoliday: true,
           name: holiday.name
         };
       }
 
+      this.logger.log(`📅 ${dateString} no es feriado en ${isoCode} (${countryCode})`);
       return { isHoliday: false };
     } catch (error: any) {
       if (error.name === 'AbortError') {
         this.logger.warn(
-          `⚠️ Timeout consultando API de feriados para ${countryCode}`
+          `⚠️ Timeout consultando OpenHolidays API para ${countryCode}`
         );
       } else {
         this.logger.error(
-          `❌ Error consultando API de feriados: ${error.message}`
+          `❌ Error consultando OpenHolidays API: ${error.message}`
         );
       }
       return { isHoliday: false };
