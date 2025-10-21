@@ -31,17 +31,41 @@ import { memoryStorage } from 'multer';
 import { UseInterceptors } from '@nestjs/common';
 import { UploadedFile } from '@nestjs/common';
 import { UploadService } from 'src/upload/upload.service';
+import { Employee } from './entities/empleado.entity';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Roles } from 'src/decorators/roles.decorator';
+import { Role } from 'src/rol/enums/role.enum';
 
 @ApiTags('Empleado')
-@UseGuards(ClerkAuthGuard) // 👈 aplica el guard a TODO el controller
 @Controller('empleado')
 export class EmpleadoController {
   constructor(
     private readonly empleadoService: EmpleadoService,
     private readonly uploadService: UploadService
   ) {}
+  //-----Encontrar todos los empleados del sistema----//
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(ClerkAuthGuard, RolesGuard)
+  @Get()
+  @ApiOperation({
+    summary: 'Obtener todos los empleados',
+    description:
+      'Retorna una lista de todos los empleados registrados en el sistema'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de usuarios obtenida exitosamente'
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Error interno del servidor'
+  })
+  async findAll(): Promise<Employee[]> {
+    return this.empleadoService.findAll();
+  }
 
-  //otro refactor para imgUrl
+  //------------ Agregar Empleados -----------------//
+  @UseGuards(ClerkAuthGuard)
   @Post()
   @ApiOperation({
     summary: 'Crear nuevo empleado',
@@ -75,19 +99,22 @@ export class EmpleadoController {
     return this.empleadoService.create(dto, req.user);
   }
 
-  // ✅ Obtener todos los empleados
-  @Get()
+  // ✅ Obtener todos los empleados de una empresa
+  @UseGuards(ClerkAuthGuard)
+  @Get('/byCompany')
   @ApiOperation({
-    summary: 'Obtener todos los empleados',
-    description: 'Retorna una lista de todos los empleados registrados'
+    summary: 'Obtener todos los empleados de una empresa',
+    description:
+      'Retorna una lista de todos los empleados registrados de una empresa en particular'
   })
   @ApiResponse({ status: 200, description: 'Lista de empleados obtenida' })
-  async findAll(@Req() req: AuthRequest) {
-    return this.empleadoService.findAll(req.user);
+  async findAllByCompany(@Req() req: AuthRequest) {
+    return this.empleadoService.findAllByCompany(req.user);
   }
 
   // ✅ Buscar empleados (filtro)
-  @Get('search')
+  @UseGuards(ClerkAuthGuard)
+  @Get('/search')
   @ApiOperation({
     summary: 'Buscar empleados',
     description:
@@ -101,6 +128,7 @@ export class EmpleadoController {
   }
 
   // ✅ Buscar por ID
+  @UseGuards(ClerkAuthGuard)
   @Get(':id')
   @ApiOperation({
     summary: 'Obtener empleado por ID',
@@ -116,6 +144,7 @@ export class EmpleadoController {
   }
 
   // ✅ Actualizar empleado
+  @UseGuards(ClerkAuthGuard)
   @Patch(':id')
   @ApiOperation({
     summary: 'Actualizar empleado',
@@ -131,6 +160,7 @@ export class EmpleadoController {
   }
 
   // ✅ Eliminar empleado
+  @UseGuards(ClerkAuthGuard)
   @Delete(':id')
   @ApiOperation({
     summary: 'Eliminar empleado',
@@ -141,6 +171,7 @@ export class EmpleadoController {
   }
 
   // ✅ Ausencias del empleado
+  @UseGuards(ClerkAuthGuard)
   @Get(':id/ausencias')
   @ApiOperation({
     summary: 'Obtener ausencias por empleado',

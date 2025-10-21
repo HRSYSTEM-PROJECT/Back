@@ -111,53 +111,60 @@ export class EmpleadoService {
   //   }
   // }
 
-  //refactor con cloudinary
-  async create(
-  createEmployeeDto: CreateEmployeeDto,
-  user: AuthenticatedUser
-): Promise<Employee> {
-  const company = await this.companiesRepository.findOne({
-    where: { id: user.companyId }
-  });
-  if (!company) throw new NotFoundException('Company not found.');
-
-  const department = await this.departmentsRepository.findOne({
-    where: { id: createEmployeeDto.department_id }
-  });
-  if (!department) throw new NotFoundException('Department not found.');
-
-  const position = await this.positionsRepository.findOne({
-    where: { id: createEmployeeDto.position_id }
-  });
-  if (!position) throw new NotFoundException('Position not found.');
-
-  const employee = this.employeeRepository.create({
-    ...createEmployeeDto,
-    company,
-    department,
-    position
-  });
-
-  const savedEmployee = await this.employeeRepository.save(employee);
-
-  try {
-    await this.notificationsService.notifyEmployeeAdded(
-      user.companyId,
-      `${savedEmployee.first_name} ${savedEmployee.last_name}`,
-      savedEmployee.position?.name || 'Empleado'
-    );
-  } catch (err) {
-    console.error('Error enviando notificación:', err);
+  //-----Encontrar todos los empleados----//
+  async findAll(): Promise<Employee[]> {
+    return this.employeeRepository.find({
+      relations: ['company', 'position', 'department']
+    });
   }
 
-  return savedEmployee;
-}
+  //------------ Agregar Empleados -----------------//
+  async create(
+    createEmployeeDto: CreateEmployeeDto,
+    user: AuthenticatedUser
+  ): Promise<Employee> {
+    const company = await this.companiesRepository.findOne({
+      where: { id: user.companyId }
+    });
+    if (!company) throw new NotFoundException('Company not found.');
 
-  // ---- Listar todos ----
-  async findAll(
+    const department = await this.departmentsRepository.findOne({
+      where: { id: createEmployeeDto.department_id }
+    });
+    if (!department) throw new NotFoundException('Department not found.');
+
+    const position = await this.positionsRepository.findOne({
+      where: { id: createEmployeeDto.position_id }
+    });
+    if (!position) throw new NotFoundException('Position not found.');
+
+    const employee = this.employeeRepository.create({
+      ...createEmployeeDto,
+      company,
+      department,
+      position
+    });
+
+    const savedEmployee = await this.employeeRepository.save(employee);
+
+    try {
+      await this.notificationsService.notifyEmployeeAdded(
+        user.companyId,
+        `${savedEmployee.first_name} ${savedEmployee.last_name}`,
+        savedEmployee.position?.name || 'Empleado'
+      );
+    } catch (err) {
+      console.error('Error enviando notificación:', err);
+    }
+
+    return savedEmployee;
+  }
+
+  // ---------- Listar todos los empleados de una empresa --------//
+  async findAllByCompany(
     user: AuthenticatedUser
   ): Promise<(Employee & { age?: number })[]> {
-      if (!user.companyId || user.companyId.trim() === '') {
+    if (!user.companyId || user.companyId.trim() === '') {
       throw new NotFoundException('Usuario sin empresa asignada');
     }
     const employees = await this.employeeRepository.find({
@@ -307,7 +314,7 @@ export class EmpleadoService {
   //   });
   // }
 
-   async getAusenciasByEmpleado(
+  async getAusenciasByEmpleado(
     employeeId: string,
     user: AuthenticatedUser,
     month?: number,
@@ -326,7 +333,7 @@ export class EmpleadoService {
 
     // Verificar que el empleado exista y pertenezca a la empresa
     const empleado = await this.employeeRepository.findOne({
-      where: { id: employeeId, company: { id: user.companyId } },
+      where: { id: employeeId, company: { id: user.companyId } }
     });
 
     if (!empleado) {
@@ -339,11 +346,11 @@ export class EmpleadoService {
         employee: { id: employeeId, company: { id: user.companyId } },
         // Considera ausencias que empiezan o terminan dentro del mes
         start_date: LessThanOrEqual(endOfMonth),
-        end_date: MoreThanOrEqual(startOfMonth),
+        end_date: MoreThanOrEqual(startOfMonth)
       },
       order: { start_date: 'ASC' },
       skip: (page - 1) * limit,
-      take: limit,
+      take: limit
     });
 
     return { data, total, page, limit };

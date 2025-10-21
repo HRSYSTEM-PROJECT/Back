@@ -23,6 +23,9 @@ import { UserResponseDto } from './dto/user-response.dto';
 import { User } from './entities/user.entity';
 import { ClerkAuthGuard } from 'src/auth/guards/clerk.guard';
 import type { AuthRequest } from 'src/interfaces/authrequest.interface';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Roles } from 'src/decorators/roles.decorator';
+import { Role } from 'src/rol/enums/role.enum';
 
 @ApiTags('User')
 @Controller('user')
@@ -61,7 +64,8 @@ export class UserController {
     return this.userService.create(createUserDto, req.user);
   }
 
-  @UseGuards(ClerkAuthGuard)
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(ClerkAuthGuard, RolesGuard)
   @Get()
   @ApiOperation({
     summary: 'Obtener todos los usuarios',
