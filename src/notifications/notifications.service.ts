@@ -853,6 +853,7 @@ export class NotificationsService {
 
       // Usar calendarific.com que soporta Guatemala y muchos más países
       const apiKey = process.env.CALENDARIFIC_API_KEY || 'YOUR_API_KEY';
+      this.logger.log(`🔑 API Key configurada: ${apiKey.substring(0, 10)}...`); // Log para debug
       const apiUrl = `https://calendarific.com/api/v2/holidays?api_key=${apiKey}&country=${countryCode}&year=${year}&month=${month}&day=${day}`;
 
       const controller = new AbortController();
