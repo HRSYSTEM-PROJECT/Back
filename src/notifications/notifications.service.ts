@@ -984,14 +984,23 @@ export class NotificationsService {
         '2025-10-23': 'Día de la Liberación de Libia'
       },
       Burundi: {
-        '2025-10-21': 'Día de Ndadaye (Melchior Ndadaye Day)' // Jueves 23 de octubre
+        '2025-10-21': 'Día de Ndadaye (Melchior Ndadaye Day)' // Martes 21 de octubre
       },
       burundi: {
         '2025-10-21': 'Día de Ndadaye (Melchior Ndadaye Day)'
       }
     };
 
+    this.logger.log(
+      `🔍 Verificando feriados hardcodeados para: ${countryCode} en fecha: ${dateString}`
+    );
+
     const countryHolidays = hardcodedHolidays[countryCode];
+    this.logger.log(
+      `🔍 Feriados disponibles para ${countryCode}:`,
+      countryHolidays
+    );
+
     if (countryHolidays && countryHolidays[dateString]) {
       this.logger.log(
         `🗓️ Feriado hardcodeado detectado: ${countryHolidays[dateString]} en ${countryCode}`
@@ -1002,6 +1011,9 @@ export class NotificationsService {
       };
     }
 
+    this.logger.log(
+      `❌ No se encontró feriado hardcodeado para ${countryCode} en ${dateString}`
+    );
     return { isHoliday: false };
   }
 
