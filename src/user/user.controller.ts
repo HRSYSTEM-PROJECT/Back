@@ -61,7 +61,7 @@ export class UserController {
     return this.userService.create(createUserDto, req.user);
   }
 
-  @UseGuards(ClerkAuthGuard)
+  //@UseGuards(ClerkAuthGuard)
   @Get()
   @ApiOperation({
     summary: 'Obtener todos los usuarios',
