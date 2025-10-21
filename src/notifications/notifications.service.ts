@@ -241,7 +241,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Recordatorio de cumpleaños
-  @Cron('*/15 * * * *') // Cada 15 minutos
+  @Cron('*/30 * * * *') //Cada 30 minutos
   async checkBirthdays() {
     const cronName = 'checkBirthdays';
     this.logger.log('🎂 Verificando cumpleaños de empleados...');
@@ -595,7 +595,6 @@ export class NotificationsService {
         }
         break;
     }
-
     return recipients;
   }
 
@@ -853,7 +852,8 @@ export class NotificationsService {
       const dateString = `${year}-${month}-${day}`;
 
       // Usar calendarific.com que soporta Guatemala y muchos más países
-      const apiUrl = `https://calendarific.com/api/v2/holidays?api_key=CALENDARY_FIC&country=${countryCode}&year=${year}&month=${month}&day=${day}`;
+      const apiKey = process.env.CALENDARIFIC_API_KEY || 'YOUR_API_KEY';
+      const apiUrl = `https://calendarific.com/api/v2/holidays?api_key=${apiKey}&country=${countryCode}&year=${year}&month=${month}&day=${day}`;
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -996,21 +996,6 @@ export class NotificationsService {
     return await this.notificationRepository.save(notification);
   }
 
-  // Marcar todas como leídas
-  async markAllAsRead(userId: string) {
-    await this.notificationRepository.update(
-      { user_id: userId, is_read: false },
-      { is_read: true }
-    );
-  }
-
-  // Eliminar todas las notificaciones
-  async deleteAll(userId: string) {
-    await this.notificationRepository.update(
-      { user_id: userId, is_deleted: false },
-      { is_deleted: true }
-    );
-  }
 
   // Obtener configuración de notificaciones
   async getNotificationConfig(userId: string) {
@@ -1168,12 +1153,30 @@ export class NotificationsService {
   // Template para cumpleaños del EMPLEADO (felicitación personal)
   private getBirthdayEmployeeTemplate(data: any): string {
     return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #e91e63;">🎉 ¡Feliz Cumpleaños ${data.employee.first_name}!</h2>
-        <p>¡Que tengas un día maravilloso!</p>
-        <p>Te desea <strong>${data.company.legal_name}</strong></p>
-        <p style="font-size: 16px; color: #666;">¡Esperamos que disfrutes mucho tu día especial! 🎈</p>
-        <p>Saludos</p>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #e91e63; font-size: 32px; font-weight: bold; margin: 0; display: flex; align-items: center; justify-content: center; gap: 10px;">
+            🎉 ¡Feliz Cumpleaños ${data.employee.first_name}! 🎂
+          </h1>
+        </div>
+        <div style="background: linear-gradient(135deg, #ff6b6b, #feca57); padding: 40px; border-radius: 15px; margin: 30px 0; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+          <h2 style="color: white; font-size: 28px; font-weight: bold; margin: 0 0 15px 0;">
+            ¡Que tengas un día maravilloso!
+          </h2>
+          <p style="color: white; font-size: 20px; margin: 0; font-weight: 500;">
+            Te desea <strong>${data.company.legal_name}</strong>
+          </p>
+        </div>
+        <div style="text-align: center; margin: 30px 0;">
+          <p style="font-size: 18px; color: #333; margin: 0;">
+            ¡Esperamos que disfrutes mucho tu día especial! 🎈
+          </p>
+        </div>
+        <div style="text-align: center; margin-top: 30px;">
+          <p style="color: #999; font-size: 16px; margin: 0;">
+            Saludos
+          </p>
+        </div>
       </div>
     `;
   }
@@ -1181,11 +1184,30 @@ export class NotificationsService {
   // Template para cumpleaños de la EMPRESA (recordatorio)
   private getBirthdayCompanyTemplate(data: any): string {
     return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #2c3e50;">🎂 Recordatorio de Cumpleaños</h2>
-        <p>Hola <strong>${data.company.legal_name}</strong>,</p>
-        <p>Ya enviamos un email saludando a <strong>${data.employee.first_name} ${data.employee.last_name}</strong>, para que en su día se sienta especial.</p>
-        <p>Saludos,<br>Equipo HR System</p>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #2c3e50; font-size: 28px; font-weight: bold; margin: 0; display: flex; align-items: center; justify-content: center; gap: 10px;">
+            🎂 Recordatorio de Cumpleaños
+          </h1>
+        </div>
+        <div style="background: linear-gradient(135deg, #3498db, #2980b9); padding: 40px; border-radius: 15px; margin: 30px 0; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+          <h2 style="color: white; font-size: 24px; font-weight: bold; margin: 0 0 15px 0;">
+            Hoy es el cumpleaños de <strong>${data.employee.first_name}</strong>
+          </h2>
+          <p style="color: white; font-size: 18px; margin: 0; font-weight: 500;">
+            Ya enviamos un email saludando a <strong>${data.employee.first_name}</strong>, para que en su día se sienta especial.
+          </p>
+        </div>
+        <div style="text-align: center; margin: 30px 0;">
+          <p style="font-size: 16px; color: #333; margin: 0;">
+            ¡No olvides felicitarlo personalmente también! 🎈
+          </p>
+        </div>
+        <div style="text-align: center; margin-top: 30px;">
+          <p style="color: #999; font-size: 16px; margin: 0;">
+            Saludos,<br>Equipo HR System
+          </p>
+        </div>
       </div>
     `;
   }
