@@ -310,11 +310,7 @@ export class EmpleadoService {
   //   });
   // }
 
-<<<<<<< HEAD
    async getAusenciasByEmpleado(
-=======
-  async getAusenciasByEmpleado(
->>>>>>> 21121ecddd2a27d2c9e0954076d8275ac3994580
     employeeId: string,
     user: AuthenticatedUser,
     month?: number,
@@ -333,11 +329,7 @@ export class EmpleadoService {
 
     // Verificar que el empleado exista y pertenezca a la empresa
     const empleado = await this.employeeRepository.findOne({
-<<<<<<< HEAD
       where: { id: employeeId, company: { id: user.companyId } },
-=======
-      where: { id: employeeId, company: { id: user.companyId } }
->>>>>>> 21121ecddd2a27d2c9e0954076d8275ac3994580
     });
 
     if (!empleado) {
@@ -350,19 +342,11 @@ export class EmpleadoService {
         employee: { id: employeeId, company: { id: user.companyId } },
         // Considera ausencias que empiezan o terminan dentro del mes
         start_date: LessThanOrEqual(endOfMonth),
-<<<<<<< HEAD
         end_date: MoreThanOrEqual(startOfMonth),
       },
       order: { start_date: 'ASC' },
       skip: (page - 1) * limit,
       take: limit,
-=======
-        end_date: MoreThanOrEqual(startOfMonth)
-      },
-      order: { start_date: 'ASC' },
-      skip: (page - 1) * limit,
-      take: limit
->>>>>>> 21121ecddd2a27d2c9e0954076d8275ac3994580
     });
 
     return { data, total, page, limit };
