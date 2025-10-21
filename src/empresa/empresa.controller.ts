@@ -22,6 +22,9 @@ import { UpdateCompanyDto } from './dto/update-empresa.dto';
 import { ParseUUIDPipe } from '@nestjs/common';
 import { ClerkAuthGuard } from 'src/auth/guards/clerk.guard';
 import type { AuthRequest } from 'src/interfaces/authrequest.interface';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Roles } from 'src/decorators/roles.decorator';
+import { Role } from 'src/rol/enums/role.enum';
 
 @ApiTags('Empresa - Gestión de Empresas')
 @Controller('empresa')
@@ -58,6 +61,8 @@ export class EmpresaController {
   //   return this.empresaService.create(createEmpresaDto);
   // }
 
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(ClerkAuthGuard, RolesGuard)
   @Get()
   @ApiOperation({
     summary: 'Obtener todas las empresas',
@@ -76,6 +81,8 @@ export class EmpresaController {
     return this.empresaService.findAll();
   }
 
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(ClerkAuthGuard, RolesGuard)
   @Get(':id')
   @ApiOperation({
     summary: 'Obtener empresa por ID',
@@ -104,7 +111,8 @@ export class EmpresaController {
     return this.empresaService.findOne(id);
   }
 
-  @UseGuards(ClerkAuthGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_OWNER)
+  @UseGuards(ClerkAuthGuard, RolesGuard)
   @Patch(':id')
   @ApiOperation({
     summary: 'Actualizar empresa',
@@ -141,7 +149,8 @@ export class EmpresaController {
     return this.empresaService.update(id, updateCompanyDto);
   }
 
-  @UseGuards(ClerkAuthGuard)
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(ClerkAuthGuard, RolesGuard)
   @Delete(':id')
   @ApiOperation({
     summary: 'Eliminar empresa',

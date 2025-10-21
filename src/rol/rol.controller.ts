@@ -5,7 +5,8 @@ import {
   Body,
   Patch,
   Param,
-  Delete
+  Delete,
+  UseGuards
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,12 +18,18 @@ import {
 import { RolService } from './rol.service';
 import { CreateRolDto } from './dto/create-rol.dto';
 import { UpdateRolDto } from './dto/update-rol.dto';
+import { ClerkAuthGuard } from 'src/auth/guards/clerk.guard';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Roles } from 'src/decorators/roles.decorator';
+import { Role } from './enums/role.enum';
 
 @ApiTags('Rol')
 @Controller('rol')
 export class RolController {
   constructor(private readonly rolService: RolService) {}
 
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(ClerkAuthGuard, RolesGuard)
   @Post()
   @ApiOperation({
     summary: 'Crear nuevo rol',
@@ -109,6 +116,8 @@ export class RolController {
     return this.rolService.findOne(id);
   }
 
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(ClerkAuthGuard, RolesGuard)
   @Patch(':id')
   @ApiOperation({
     summary: 'Actualizar rol',
@@ -140,6 +149,8 @@ export class RolController {
     return this.rolService.update(id, updateRolDto);
   }
 
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(ClerkAuthGuard, RolesGuard)
   @Delete(':id')
   @ApiOperation({
     summary: 'Eliminar rol',

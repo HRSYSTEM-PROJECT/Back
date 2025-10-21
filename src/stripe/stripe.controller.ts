@@ -10,12 +10,16 @@ import { StripeService } from './stripe.service';
 import { ApiOperation, ApiBody } from '@nestjs/swagger';
 import { ClerkAuthGuard } from 'src/auth/guards/clerk.guard';
 import type { AuthRequest } from 'src/interfaces/authrequest.interface';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Roles } from 'src/decorators/roles.decorator';
+import { Role } from 'src/rol/enums/role.enum';
 
 @Controller('stripe')
 export class StripeController {
   constructor(private readonly stripeService: StripeService) {}
 
-  @UseGuards(ClerkAuthGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_OWNER)
+  @UseGuards(ClerkAuthGuard, RolesGuard)
   @Post('checkout')
   @ApiOperation({
     summary: 'Actualiza a una suscripcion de pago.',
@@ -55,7 +59,8 @@ export class StripeController {
     return { url: session.url, sessionId: session.id };
   }
 
-  @UseGuards(ClerkAuthGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_OWNER)
+  @UseGuards(ClerkAuthGuard, RolesGuard)
   @Post('cancel')
   @ApiOperation({
     summary: 'Cancela a una suscripcion de pago.',

@@ -24,6 +24,9 @@ import {
 import { ClerkAuthGuard } from '../auth/guards/clerk.guard';
 import type { Request } from 'express';
 import type { AuthRequest } from 'src/interfaces/authrequest.interface';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Roles } from 'src/decorators/roles.decorator';
+import { Role } from 'src/rol/enums/role.enum';
 
 @ApiTags('Suscripciones')
 @Controller('suscripciones')
@@ -71,6 +74,8 @@ export class SuscripcionController {
   //   );
   // }
 
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(ClerkAuthGuard, RolesGuard)
   @Get()
   @ApiOperation({ summary: 'Obtener todas las suscripciones' })
   @ApiResponse({
@@ -126,6 +131,7 @@ export class SuscripcionController {
   //   return this.suscripcionService.addCompanySuscription(companyId, planId);
   // }
 
+  @UseGuards(ClerkAuthGuard)
   @Get(':id')
   @ApiOperation({ summary: 'Obtener una suscripción por ID' })
   @ApiParam({ name: 'id', description: 'ID de la suscripción', type: 'string' })
