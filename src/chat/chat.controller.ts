@@ -76,13 +76,14 @@ export class ChatController {
     // Transformar el chat para enviar los participantes correctamente
     const transformedChat = {
       ...chat,
-      participants: chat.participants.map(participant => ({
-        id: participant.user.id,
-        first_name: participant.user.first_name,
-        last_name: participant.user.last_name,
-        email: participant.user.email,
-        profile_image_url: participant.user.profile_image_url
-      }))
+      participants:
+        chat.participants?.map((participant) => ({
+          id: participant.user?.id,
+          first_name: participant.user?.first_name,
+          last_name: participant.user?.last_name,
+          email: participant.user?.email,
+          profile_image_url: participant.user?.profile_image_url
+        })) || []
     };
 
     return transformedChat;
@@ -105,18 +106,23 @@ export class ChatController {
       throw new Error('Usuario no autenticado o datos de usuario incompletos');
     }
 
-    const result = await this.chatService.getUserChats(req.user.id, page, limit);
-    
+    const result = await this.chatService.getUserChats(
+      req.user.id,
+      page,
+      limit
+    );
+
     // Transformar los chats para asegurar que los participantes se envíen correctamente
-    const transformedChats = result.chats.map(chat => ({
+    const transformedChats = result.chats.map((chat) => ({
       ...chat,
-      participants: chat.participants.map(participant => ({
-        id: participant.user.id,
-        first_name: participant.user.first_name,
-        last_name: participant.user.last_name,
-        email: participant.user.email,
-        profile_image_url: participant.user.profile_image_url
-      }))
+      participants:
+        chat.participants?.map((participant) => ({
+          id: participant.user?.id,
+          first_name: participant.user?.first_name,
+          last_name: participant.user?.last_name,
+          email: participant.user?.email,
+          profile_image_url: participant.user?.profile_image_url
+        })) || []
     }));
 
     return {

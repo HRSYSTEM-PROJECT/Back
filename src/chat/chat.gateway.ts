@@ -307,18 +307,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       for (const participant of participants) {
         const socketId = this.userSockets.get(participant.user_id);
         if (socketId) {
-          // Usar la API correcta de Socket.IO v4+
-          const socket = this.server.sockets.sockets.get(socketId);
-          if (socket) {
-            socket.join(`chat_${chatId}`);
-            joinedCount++;
-            this.logger.log(
-              `👥 Usuario ${participant.user_id} unido al chat ${chatId}`
-            );
-          } else {
-            this.logger.warn(
-              `⚠️ Socket ${socketId} no encontrado para usuario ${participant.user_id}`
-            );
+          try {
+            // Obtener todos los sockets y buscar el correcto
+            const sockets = await this.server.fetchSockets();
+            const socket = sockets.find((s) => s.id === socketId);
+            if (socket) {
+              socket.join(`chat_${chatId}`);
+              joinedCount++;
+              this.logger.log(
+                `👥 Usuario ${participant.user_id} unido al chat ${chatId}`
+              );
+            } else {
+              this.logger.warn(
+                `⚠️ Socket ${socketId} no encontrado para usuario ${participant.user_id}`
+              );
+            }
+          } catch (err) {
+            this.logger.error(`❌ Error obteniendo socket ${socketId}:`, err);
           }
         } else {
           this.logger.warn(
