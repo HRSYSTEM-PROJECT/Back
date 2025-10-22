@@ -75,7 +75,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Unir al usuario a sus chats
       await this.joinUserChats(client, userDB.id);
 
-      this.logger.log(`✅ Usuario ${userDB.id} (${userDB.email}) autenticado y conectado`);
+      this.logger.log(
+        `✅ Usuario ${userDB.id} (${userDB.email}) autenticado y conectado`
+      );
     } catch (error) {
       this.logger.warn(`❌ Conexión rechazada: ${error.message}`);
       client.disconnect();
@@ -284,19 +286,56 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // 🔗 Método público para unir usuarios a un chat específico
   async joinUsersToChat(chatId: string) {
     try {
+      // Verificar que el servidor esté inicializado
+      if (!this.server) {
+        this.logger.warn(`⚠️ Servidor WebSocket no inicializado`);
+        return;
+      }
+
+      // Verificar que el servidor tenga la estructura de sockets correcta
+      if (!this.server.sockets || !this.server.sockets.sockets) {
+        this.logger.warn(`⚠️ Estructura de sockets no disponible`);
+        return;
+      }
+
       // Obtener todos los participantes del chat
       const participants = await this.chatService.getChatParticipants(chatId);
-      
+
+      if (!participants || participants.length === 0) {
+        this.logger.warn(
+          `⚠️ No se encontraron participantes para el chat ${chatId}`
+        );
+        return;
+      }
+
+      let joinedCount = 0;
+
       for (const participant of participants) {
         const socketId = this.userSockets.get(participant.user_id);
         if (socketId) {
+          // Verificar que el socket existe usando el método correcto
           const socket = this.server.sockets.sockets.get(socketId);
           if (socket) {
             socket.join(`chat_${chatId}`);
-            this.logger.log(`👥 Usuario ${participant.user_id} unido al chat ${chatId}`);
+            joinedCount++;
+            this.logger.log(
+              `👥 Usuario ${participant.user_id} unido al chat ${chatId}`
+            );
+          } else {
+            this.logger.warn(
+              `⚠️ Socket ${socketId} no encontrado para usuario ${participant.user_id}`
+            );
           }
+        } else {
+          this.logger.warn(
+            `⚠️ Usuario ${participant.user_id} no está conectado`
+          );
         }
       }
+
+      this.logger.log(
+        `✅ ${joinedCount} usuarios unidos al chat ${chatId} de ${participants.length} participantes`
+      );
     } catch (error: any) {
       this.logger.error(`❌ Error uniendo usuarios al chat ${chatId}:`, error);
     }
