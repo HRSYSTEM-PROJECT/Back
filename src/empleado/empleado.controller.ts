@@ -16,7 +16,8 @@ import {
   ApiOperation,
   ApiResponse,
   ApiParam,
-  ApiBody
+  ApiBody,
+  ApiConsumes
 } from '@nestjs/swagger';
 import type { AuthRequest } from 'src/interfaces/authrequest.interface';
 import { EmpleadoService } from './empleado.service';
@@ -160,28 +161,30 @@ export class EmpleadoController {
   // }
 
      // ✅ Actualizar empleado (refactorizado para form-data)
-  @UseGuards(ClerkAuthGuard)
-  @Patch(':id')
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({
-    summary: 'Actualizar empleado',
-    description:
-      'Actualiza la información de un empleado existente. Solo se actualizan los campos enviados.'
-  })
-  async update(
-    @Param('id') id: string,
-    @Body() dto: UpdateEmployeeDto,
-    @Req() req: AuthRequest,
-    @UploadedFile() file?: Express.Multer.File
-  ) {
-    if (file) {
-      const imageUrl = await this.uploadService.uploadImage(file);
-      dto.imgUrl = imageUrl;
-    }
-
-    return this.empleadoService.update(id, dto, req.user);
+    @UseGuards(ClerkAuthGuard)
+@Patch(':id')
+@UseInterceptors(FileInterceptor('file'))
+@ApiConsumes('multipart/form-data') // 👈 clave
+@ApiOperation({
+  summary: 'Actualizar empleado',
+  description:
+    'Actualiza la información de un empleado existente. Solo se actualizan los campos enviados.'
+})
+async update(
+  @Param('id') id: string,
+  @Body() dto: UpdateEmployeeDto,
+  @Req() req: AuthRequest,
+  @UploadedFile() file?: Express.Multer.File
+) {
+  if (file) {
+    const imageUrl = await this.uploadService.uploadImage(file);
+    dto.imgUrl = imageUrl;
   }
+
+  return this.empleadoService.update(id, dto, req.user);
 }
+
+
 
   // ✅ Eliminar empleado
   @UseGuards(ClerkAuthGuard)
@@ -190,6 +193,8 @@ export class EmpleadoController {
     summary: 'Eliminar empleado',
     description: 'Elimina un empleado del sistema (soft delete)'
   })
+
+
   async remove(@Param('id') id: string, @Req() req: AuthRequest) {
     return this.empleadoService.remove(id, req.user);
   }
@@ -215,6 +220,7 @@ export class EmpleadoController {
   //     year
   //   );
   // }
+
   async getAusenciasByEmpleado(
     @Param('id') employeeId: string,
     @Req() req: AuthRequest,
@@ -231,5 +237,4 @@ export class EmpleadoController {
       page ? Number(page) : 1,
       limit ? Number(limit) : 10
     );
-  }
-}
+  }  }
