@@ -225,57 +225,120 @@ export class EmpleadoService {
     }));
   }
 
-  // ---- Actualizar ----
-  async update(
-    id: string,
-    dto: UpdateEmployeeDto,
-    user: AuthenticatedUser
-  ): Promise<Employee> {
-    // Separar los IDs de relación del resto del DTO
-    const { department_id, position_id, company_id, ...employeeProps } = dto;
+  // // ---- Actualizar ----
+  // async update(
+  //   id: string,
+  //   dto: UpdateEmployeeDto,
+  //   user: AuthenticatedUser
+  // ): Promise<Employee> {
+  //   // Separar los IDs de relación del resto del DTO
+  //   const { department_id, position_id, company_id, ...employeeProps } = dto;
 
-    // 'employeeProps' contiene ahora solo las propiedades directas de Employee (first_name, salary, etc.)
-    const updateData: Partial<Employee> = employeeProps;
+  //   // 'employeeProps' contiene ahora solo las propiedades directas de Employee (first_name, salary, etc.)
+  //   const updateData: Partial<Employee> = employeeProps;
 
-    // Actualización del Departamento
-    if (department_id) {
-      const newDepartment = await this.departmentsRepository.findOne({
-        where: { id: department_id, company: { id: user.companyId } }
-      });
+  //   // Actualización del Departamento
+  //   if (department_id) {
+  //     const newDepartment = await this.departmentsRepository.findOne({
+  //       where: { id: department_id, company: { id: user.companyId } }
+  //     });
 
-      if (!newDepartment) {
-        throw new NotFoundException(
-          'Department ID not found or does not belong to the company.'
-        );
-      }
+  //     if (!newDepartment) {
+  //       throw new NotFoundException(
+  //         'Department ID not found or does not belong to the company.'
+  //       );
+  //     }
 
-      // Asignar la ENTIDAD al campo de relación 'department'
-      updateData.department = newDepartment;
-    }
+  //     // Asignar la ENTIDAD al campo de relación 'department'
+  //     updateData.department = newDepartment;
+  //   }
 
-    // Actualización de la Posición
-    if (position_id) {
-      const newPosition = await this.positionsRepository.findOne({
-        where: { id: position_id, company: { id: user.companyId } }
-      });
+  //   // Actualización de la Posición
+  //   if (position_id) {
+  //     const newPosition = await this.positionsRepository.findOne({
+  //       where: { id: position_id, company: { id: user.companyId } }
+  //     });
 
-      if (!newPosition) {
-        throw new NotFoundException(
-          'Position ID not found or does not belong to the company.'
-        );
-      }
+  //     if (!newPosition) {
+  //       throw new NotFoundException(
+  //         'Position ID not found or does not belong to the company.'
+  //       );
+  //     }
 
-      // Asignar la ENTIDAD al campo de relación 'position'
-      updateData.position = newPosition;
-    }
+  //     // Asignar la ENTIDAD al campo de relación 'position'
+  //     updateData.position = newPosition;
+  //   }
 
-    //Ejecutar la actualización con el objeto 'updateData'
-    await this.employeeRepository.update(
-      { id, company: { id: user.companyId } },
-      updateData
-    );
-    return this.findOne(id, user);
+  //   //Ejecutar la actualización con el objeto 'updateData'
+  //   await this.employeeRepository.update(
+  //     { id, company: { id: user.companyId } },
+  //     updateData
+  //   );
+  //   return this.findOne(id, user);
+  // }
+
+    //refactor para form-data
+    async update(
+  id: string,
+  dto: UpdateEmployeeDto,
+  user: AuthenticatedUser
+): Promise<Employee> {
+  const { department_id, position_id, company_id, ...employeeProps } = dto;
+
+  // Buscar al empleado, asegurando que pertenezca a la empresa del usuario
+  const employee = await this.employeeRepository.findOne({
+    where: { id, company: { id: user.companyId } },
+    relations: ['department', 'position', 'company']
+  });
+
+  if (!employee) {
+    throw new NotFoundException('Empleado no encontrado o no pertenece a la empresa');
   }
+
+  // Actualización parcial
+  const updateData: Partial<Employee> = { ...employeeProps };
+
+  // Si se envía un nuevo department_id
+  if (department_id) {
+    const newDepartment = await this.departmentsRepository.findOne({
+      where: { id: department_id, company: { id: user.companyId } }
+    });
+
+    if (!newDepartment) {
+      throw new NotFoundException(
+        'Department ID not found or does not belong to the company.'
+      );
+    }
+
+    updateData.department = newDepartment;
+  }
+
+  // Si se envía un nuevo position_id
+  if (position_id) {
+    const newPosition = await this.positionsRepository.findOne({
+      where: { id: position_id, company: { id: user.companyId } }
+    });
+
+    if (!newPosition) {
+      throw new NotFoundException(
+        'Position ID not found or does not belong to the company.'
+      );
+    }
+
+    updateData.position = newPosition;
+  }
+
+  // ⚠️ Si se envió una nueva imagen, reemplaza; si no, conserva la actual
+  if (dto.imgUrl) {
+    updateData.imgUrl = dto.imgUrl;
+  }
+
+  // Actualiza solo los campos que llegaron
+  Object.assign(employee, updateData);
+
+  return this.employeeRepository.save(employee);
+}
+
 
   // ---- Eliminar ----
   async remove(id: string, user: AuthenticatedUser): Promise<void> {
