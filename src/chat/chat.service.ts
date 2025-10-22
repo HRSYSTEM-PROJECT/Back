@@ -57,7 +57,7 @@ export class ChatService {
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.company', 'company')
       .where('user.id != :currentUserId', { currentUserId })
-      .andWhere('user.is_deleted = :isDeleted', { isDeleted: false })
+      .andWhere('user.deleted_at IS NULL')
       .andWhere('company.id = :companyId', {
         companyId: currentUser.company.id
       });
