@@ -143,9 +143,26 @@ export class EmpleadoController {
     return this.empleadoService.findOne(id, req.user);
   }
 
-  // ✅ Actualizar empleado
+  // // ✅ Actualizar empleado
+  // @UseGuards(ClerkAuthGuard)
+  // @Patch(':id')
+  // @ApiOperation({
+  //   summary: 'Actualizar empleado',
+  //   description:
+  //     'Actualiza la información de un empleado existente. Solo se actualizan los campos enviados.'
+  // })
+  // async update(
+  //   @Param('id') id: string,
+  //   @Body() dto: UpdateEmployeeDto,
+  //   @Req() req: AuthRequest
+  // ) {
+  //   return this.empleadoService.update(id, dto, req.user);
+  // }
+
+     // ✅ Actualizar empleado (refactorizado para form-data)
   @UseGuards(ClerkAuthGuard)
   @Patch(':id')
+  @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({
     summary: 'Actualizar empleado',
     description:
@@ -154,10 +171,17 @@ export class EmpleadoController {
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateEmployeeDto,
-    @Req() req: AuthRequest
+    @Req() req: AuthRequest,
+    @UploadedFile() file?: Express.Multer.File
   ) {
+    if (file) {
+      const imageUrl = await this.uploadService.uploadImage(file);
+      dto.imgUrl = imageUrl;
+    }
+
     return this.empleadoService.update(id, dto, req.user);
   }
+}
 
   // ✅ Eliminar empleado
   @UseGuards(ClerkAuthGuard)
