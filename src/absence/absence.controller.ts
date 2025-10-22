@@ -126,7 +126,7 @@ export class AbsenceController {
   }
 
   //get de ranking de ausencias
-  @Get('ausencias/ranking')
+  @Get('ranking')
   async getAusenciasRanking(
   @AuthUser() user: AuthenticatedUser,
   @Query('startDate') startDate?: string,
