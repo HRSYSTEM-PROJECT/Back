@@ -181,7 +181,7 @@ export class EmpleadoController {
 
     return this.empleadoService.update(id, dto, req.user);
   }
-}
+
 
   // ✅ Eliminar empleado
   @UseGuards(ClerkAuthGuard)
@@ -190,6 +190,8 @@ export class EmpleadoController {
     summary: 'Eliminar empleado',
     description: 'Elimina un empleado del sistema (soft delete)'
   })
+
+
   async remove(@Param('id') id: string, @Req() req: AuthRequest) {
     return this.empleadoService.remove(id, req.user);
   }
@@ -215,6 +217,7 @@ export class EmpleadoController {
   //     year
   //   );
   // }
+
   async getAusenciasByEmpleado(
     @Param('id') employeeId: string,
     @Req() req: AuthRequest,
@@ -231,5 +234,4 @@ export class EmpleadoController {
       page ? Number(page) : 1,
       limit ? Number(limit) : 10
     );
-  }
-}
+  }  }
