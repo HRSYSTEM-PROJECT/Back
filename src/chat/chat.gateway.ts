@@ -292,12 +292,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-      // Verificar que el servidor tenga la estructura de sockets correcta
-      if (!this.server.sockets || !this.server.sockets.sockets) {
-        this.logger.warn(`⚠️ Estructura de sockets no disponible`);
-        return;
-      }
-
       // Obtener todos los participantes del chat
       const participants = await this.chatService.getChatParticipants(chatId);
 
@@ -313,7 +307,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       for (const participant of participants) {
         const socketId = this.userSockets.get(participant.user_id);
         if (socketId) {
-          // Verificar que el socket existe usando el método correcto
+          // Usar la API correcta de Socket.IO v4+
           const socket = this.server.sockets.sockets.get(socketId);
           if (socket) {
             socket.join(`chat_${chatId}`);
