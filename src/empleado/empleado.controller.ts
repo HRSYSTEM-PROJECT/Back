@@ -16,7 +16,8 @@ import {
   ApiOperation,
   ApiResponse,
   ApiParam,
-  ApiBody
+  ApiBody,
+  ApiConsumes
 } from '@nestjs/swagger';
 import type { AuthRequest } from 'src/interfaces/authrequest.interface';
 import { EmpleadoService } from './empleado.service';
