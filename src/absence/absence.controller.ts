@@ -67,7 +67,7 @@ import {
   UseGuards,
   Query
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { AbsenceService } from './absence.service';
 import { CreateAbsenceDto } from './dto/create-absence.dto';
 import { UpdateAbsenceDto } from './dto/update-absence.dto';
@@ -127,6 +127,10 @@ export class AbsenceController {
 
   //get de ranking de ausencias
   @Get('ranking')
+  @ApiQuery({ name: 'startDate', required: false, type: String })
+  @ApiQuery({ name: 'endDate', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
   async getAusenciasRanking(
   @AuthUser() user: AuthenticatedUser,
   @Query('startDate') startDate?: string,
