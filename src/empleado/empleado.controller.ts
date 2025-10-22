@@ -160,7 +160,7 @@ export class EmpleadoController {
   //   return this.empleadoService.update(id, dto, req.user);
   // }
 
-     // ✅ Actualizar empleado (refactorizado para form-data)
+   // ✅ Actualizar empleado (refactorizado para form-data)
     @UseGuards(ClerkAuthGuard)
 @Patch(':id')
 @UseInterceptors(
@@ -188,7 +188,13 @@ async update(
   @Req() req: AuthRequest,
   @UploadedFile() file?: Express.Multer.File
 ) {
+   console.log('Datos recibidos:', dto);
   if (file) {
+     console.log('Archivo recibido:', {
+    originalname: file.originalname,
+    mimetype: file.mimetype,
+    size: file.size
+  });
     const imageUrl = await this.uploadService.uploadImage(file);
     dto.imgUrl = imageUrl;
   }
