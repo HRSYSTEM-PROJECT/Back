@@ -163,7 +163,19 @@ export class EmpleadoController {
      // ✅ Actualizar empleado (refactorizado para form-data)
     @UseGuards(ClerkAuthGuard)
 @Patch(':id')
-@UseInterceptors(FileInterceptor('file'))
+@UseInterceptors(
+  FileInterceptor('file', {
+    storage: memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+        return cb(new Error('Solo se permiten imágenes'), false);
+      }
+      cb(null, true);
+    }
+  })
+)
+
 @ApiConsumes('multipart/form-data') // 👈 clave
 @ApiOperation({
   summary: 'Actualizar empleado',
