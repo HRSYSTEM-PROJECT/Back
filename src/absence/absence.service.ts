@@ -100,7 +100,7 @@ import { UpdateAbsenceDto } from './dto/update-absence.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Employee } from '../empleado/entities/empleado.entity';
 import { AuthenticatedUser } from 'src/interfaces/authenticated-user.interface';
-import { MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
+import { MoreThanOrEqual, LessThanOrEqual, Not } from 'typeorm';
 import { Query, Controller, Get, Req } from '@nestjs/common';
 import { AuthUser } from 'src/decoradores/auth-user.decoratos';
 
@@ -131,44 +131,101 @@ export class AbsenceService {
 }
 
 
+  // async create(
+  //   createAbsenceDto: CreateAbsenceDto,
+  //   user: AuthenticatedUser
+  // ): Promise<Absence> {
+  //   const employee = await this.employeeRepository.findOne({
+  //     where: {
+  //       id: createAbsenceDto.employee_id,
+  //       company: { id: user.companyId }
+  //     },
+  //     relations: ['company']
+  //   });
+
+  //   if (!employee) {
+  //     throw new NotFoundException('Empleado no pertenece a tu empresa');
+  //   }
+
+  //   const absence = new Absence();
+  //   absence.employee = employee;
+  //   absence.start_date = new Date(createAbsenceDto.start_date);
+  //   absence.end_date = new Date(createAbsenceDto.end_date);
+  //   absence.description = createAbsenceDto.description;
+
+  //   const savedAbsence = await this.absenceRepository.save(absence);
+
+  //   try {
+  //     await this.notificationsService.notifyAbsenceAdded(
+  //       employee.company.id,
+  //       `${employee.first_name} ${employee.last_name}`,
+  //       absence.start_date,
+  //       absence.end_date,
+  //       absence.description
+  //     );
+  //   } catch (error) {
+  //     console.error('Error enviando notificación de ausencia:', error);
+  //   }
+    
+  //   return savedAbsence;
+  // }
+
+  //logica para que no se superpongan las faltas
   async create(
-    createAbsenceDto: CreateAbsenceDto,
-    user: AuthenticatedUser
-  ): Promise<Absence> {
-    const employee = await this.employeeRepository.findOne({
-      where: {
-        id: createAbsenceDto.employee_id,
-        company: { id: user.companyId }
-      },
-      relations: ['company']
-    });
+  createAbsenceDto: CreateAbsenceDto,
+  user: AuthenticatedUser
+): Promise<Absence> {
+  const employee = await this.employeeRepository.findOne({
+    where: {
+      id: createAbsenceDto.employee_id,
+      company: { id: user.companyId }
+    },
+    relations: ['company']
+  });
 
-    if (!employee) {
-      throw new NotFoundException('Empleado no pertenece a tu empresa');
-    }
-
-    const absence = new Absence();
-    absence.employee = employee;
-    absence.start_date = new Date(createAbsenceDto.start_date);
-    absence.end_date = new Date(createAbsenceDto.end_date);
-    absence.description = createAbsenceDto.description;
-
-    const savedAbsence = await this.absenceRepository.save(absence);
-
-    try {
-      await this.notificationsService.notifyAbsenceAdded(
-        employee.company.id,
-        `${employee.first_name} ${employee.last_name}`,
-        absence.start_date,
-        absence.end_date,
-        absence.description
-      );
-    } catch (error) {
-      console.error('Error enviando notificación de ausencia:', error);
-    }
-
-    return savedAbsence;
+  if (!employee) {
+    throw new NotFoundException('Empleado no pertenece a tu empresa');
   }
+
+  const startDate = new Date(createAbsenceDto.start_date);
+  const endDate = new Date(createAbsenceDto.end_date);
+
+  // Validación de solapamiento
+  const overlapping = await this.absenceRepository.findOne({
+    where: {
+      employee: { id: employee.id },
+      start_date: LessThanOrEqual(endDate),
+      end_date: MoreThanOrEqual(startDate)
+    }
+  });
+
+  if (overlapping) {
+    throw new Error('Ya existe una ausencia en ese rango de fechas');
+  }
+
+  const absence = new Absence();
+  absence.employee = employee;
+  absence.start_date = startDate;
+  absence.end_date = endDate;
+  absence.description = createAbsenceDto.description;
+
+  const savedAbsence = await this.absenceRepository.save(absence);
+
+  try {
+    await this.notificationsService.notifyAbsenceAdded(
+      employee.company.id,
+      `${employee.first_name} ${employee.last_name}`,
+      startDate,
+      endDate,
+      absence.description
+    );
+  } catch (error) {
+    console.error('Error enviando notificación de ausencia:', error);
+  }
+
+  return savedAbsence;
+}
+
 
   async findAll(user: AuthenticatedUser): Promise<Absence[]> {
     return await this.absenceRepository.find({
@@ -215,23 +272,70 @@ export class AbsenceService {
     return absence;
   }
 
-  async update(
-    id: string,
-    updateAbsenceDto: UpdateAbsenceDto,
-    user: AuthenticatedUser
-  ): Promise<Absence> {
-    const absence = await this.findOne(id, user);
+//   async update(
+//     id: string,
+//     updateAbsenceDto: UpdateAbsenceDto,
+//     user: AuthenticatedUser
+//   ): Promise<Absence> {
+//     const absence = await this.findOne(id, user);
+//     //logica para que no se solapen las ausencias
+//     const overlapping = await this.absenceRepository.findOne({
+//   where: {
+//     employee: { id: createAbsenceDto.employee_id },
+//     start_date: LessThanOrEqual(endDate),
+//     end_date: MoreThanOrEqual(startDate)
+//   }
+// });
 
-    Object.assign(absence, updateAbsenceDto);
-    return await this.absenceRepository.save(absence);
+
+//     Object.assign(absence, updateAbsenceDto);
+//     return await this.absenceRepository.save(absence);
+//   }
+
+//refactor con logica para que no solape ausencias
+async update(
+  id: string,
+  updateAbsenceDto: UpdateAbsenceDto,
+  user: AuthenticatedUser
+): Promise<Absence> {
+  const absence = await this.findOne(id, user);
+
+  const newStartDate = updateAbsenceDto.start_date
+    ? new Date(updateAbsenceDto.start_date)
+    : absence.start_date;
+
+  const newEndDate = updateAbsenceDto.end_date
+    ? new Date(updateAbsenceDto.end_date)
+    : absence.end_date;
+
+  // Validación de solapamiento (excluyendo la ausencia actual)
+  const overlapping = await this.absenceRepository.findOne({
+    where: {
+      employee: { id: absence.employee.id },
+      start_date: LessThanOrEqual(newEndDate),
+      end_date: MoreThanOrEqual(newStartDate),
+      id: Not(id)
+    }
+  });
+
+  if (overlapping) {
+    throw new Error('Ya existe otra ausencia en ese rango de fechas');
   }
+
+  Object.assign(absence, {
+    ...updateAbsenceDto,
+    start_date: newStartDate,
+    end_date: newEndDate
+  });
+
+  return await this.absenceRepository.save(absence);
+}
+
 
   async remove(id: string, user: AuthenticatedUser): Promise<void> {
     const absence = await this.findOne(id, user);
     await this.absenceRepository.remove(absence);
   }
-
-
 
   //filtro de ausencias tipo ranking de todos los empledos de la empresa
   async getAusenciasRanking(
