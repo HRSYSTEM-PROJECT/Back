@@ -53,4 +53,17 @@ export class EmpresaService {
   async remove(id: string): Promise<void> {
     await this.companyRepository.softDelete(id);
   }
+
+  async findOneWithSubscription(id: string) {
+    const company = await this.companyRepository.findOne({
+      where: { id },
+      relations: ['suscripciones', 'suscripciones.plan']
+    });
+
+    if (!company) {
+      throw new NotFoundException(`Empresa con ID ${id} no encontrada`);
+    }
+
+    return company;
+  }
 }

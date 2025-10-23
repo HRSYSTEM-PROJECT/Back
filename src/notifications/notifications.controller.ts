@@ -23,10 +23,11 @@ import {
 } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { AuthenticatedUser } from '../interfaces/authenticated-user.interface';
+import { SubscriptionGuard } from 'src/auth/guards/subscription.guard';
 
-@ApiTags('Notificaciones')
+@UseGuards(ClerkAuthGuard, SubscriptionGuard)
 @Controller('notifications')
-@UseGuards(ClerkAuthGuard)
+@ApiTags('Notificaciones')
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 

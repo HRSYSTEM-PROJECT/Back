@@ -15,6 +15,7 @@ import { UserModule } from 'src/user/user.module';
     UserModule
   ],
   controllers: [EmpresaController],
-  providers: [EmpresaService]
+  providers: [EmpresaService],
+  exports: [EmpresaService]
 })
 export class EmpresaModule {}

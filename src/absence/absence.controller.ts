@@ -74,8 +74,9 @@ import { UpdateAbsenceDto } from './dto/update-absence.dto';
 import { ClerkAuthGuard } from 'src/auth/guards/clerk.guard';
 import { AuthUser } from 'src/decoradores/auth-user.decoratos';
 import type { AuthenticatedUser } from 'src/interfaces/authenticated-user.interface';
+import { SubscriptionGuard } from 'src/auth/guards/subscription.guard';
 
-@UseGuards(ClerkAuthGuard)
+@UseGuards(ClerkAuthGuard, SubscriptionGuard) // <-------- Se agregó el guardián de suscripcion despues del guardian de clerk
 @ApiTags('Absence')
 @Controller('absence')
 export class AbsenceController {
@@ -92,6 +93,28 @@ export class AbsenceController {
   @ApiOperation({ summary: 'Obtener todas las ausencias' })
   findAll(@AuthUser() user: AuthenticatedUser) {
     return this.absenceService.findAll(user);
+  }
+
+  //get de ranking de ausencias
+  @Get('ranking')
+  @ApiQuery({ name: 'startDate', required: false, type: String })
+  @ApiQuery({ name: 'endDate', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  async getAusenciasRanking(
+    @AuthUser() user: AuthenticatedUser,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number
+  ) {
+    return this.absenceService.getAusenciasRanking(
+      user,
+      startDate,
+      endDate,
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 10
+    );
   }
 
   @Get('employee/:employeeId')
@@ -124,26 +147,4 @@ export class AbsenceController {
   remove(@Param('id') id: string, @AuthUser() user: AuthenticatedUser) {
     return this.absenceService.remove(id, user);
   }
-
-  //get de ranking de ausencias
-  @Get('ranking')
-  @ApiQuery({ name: 'startDate', required: false, type: String })
-  @ApiQuery({ name: 'endDate', required: false, type: String })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  async getAusenciasRanking(
-  @AuthUser() user: AuthenticatedUser,
-  @Query('startDate') startDate?: string,
-  @Query('endDate') endDate?: string,
-  @Query('page') page?: number,
-  @Query('limit') limit?: number
-  ) {
-  return this.absenceService.getAusenciasRanking(
-  user,
-  startDate,
-  endDate,
-  page ? Number(page) : 1,
-  limit ? Number(limit) : 10
-  );
-  }
-  }
+}

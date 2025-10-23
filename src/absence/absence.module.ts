@@ -6,12 +6,14 @@ import { Absence } from './entities/absence.entity';
 import { Employee } from '../empleado/entities/empleado.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { UserModule } from 'src/user/user.module';
+import { EmpresaModule } from 'src/empresa/empresa.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Absence, Employee]),
     NotificationsModule,
-    UserModule
+    UserModule,
+    EmpresaModule
   ],
   controllers: [AbsenceController],
   providers: [AbsenceService],

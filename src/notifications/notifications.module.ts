@@ -12,6 +12,7 @@ import { Notification } from './entities/notification.entity';
 import { NotificationConfig } from './entities/notification-config.entity';
 import { ScheduledNotification } from './entities/scheduled-notification.entity';
 import { UserModule } from 'src/user/user.module';
+import { EmpresaModule } from 'src/empresa/empresa.module';
 
 @Module({
   imports: [
@@ -25,7 +26,8 @@ import { UserModule } from 'src/user/user.module';
       NotificationConfig,
       ScheduledNotification
     ]),
-    UserModule
+    UserModule,
+    EmpresaModule
   ],
   providers: [NotificationsService, NotificationsGateway],
   controllers: [NotificationsController],
