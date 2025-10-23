@@ -241,7 +241,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Recordatorio de cumpleaños
-  @Cron('*/5 * * * *') // Cada 5 minutos
+  @Cron('30 16 * * *') // Todos los días a las 16:35
   async checkBirthdays() {
     const cronName = 'checkBirthdays';
     this.logger.log('🎂 Verificando cumpleaños de empleados...');
@@ -272,7 +272,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Recordatorios de feriados
-  @Cron('*/5 * * * *') // Cada 5 minutos
+  @Cron('35 16 * * *') // Todos los días a las 16:35
   async checkHolidays() {
     const cronName = 'checkHolidays';
     this.logger.log('🎊 Verificando feriados...');
@@ -824,7 +824,7 @@ export class NotificationsService {
             await this.createNotification(
               user.id,
               '🎊 Recordatorio de feriado',
-              `Mañana es feriado: ${isHoliday.name}`,
+              `Hoy es feriado: ${isHoliday.name}`,
               'holiday_reminder' as NotificationType
             );
           }
