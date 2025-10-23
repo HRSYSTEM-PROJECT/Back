@@ -11,15 +11,25 @@ import { UserModule } from '../user/user.module';
 import { ClerkAuthGuard } from 'src/auth/guards/clerk.guard';
 import { UploadModule } from 'src/upload/upload.module';
 import { Absence } from 'src/absence/entities/absence.entity';
+import { EmpresaModule } from 'src/empresa/empresa.module';
+import { EmployeeLimitGuard } from 'src/auth/guards/employee-limit.guard';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Employee, Departamento, Position, Company, Absence]),
+    TypeOrmModule.forFeature([
+      Employee,
+      Departamento,
+      Position,
+      Company,
+      Absence
+    ]),
     NotificationsModule,
     UserModule,
+    EmpresaModule,
     UploadModule
   ],
   controllers: [EmpleadoController],
-  providers: [EmpleadoService, ClerkAuthGuard]
+  providers: [EmpleadoService, ClerkAuthGuard, EmployeeLimitGuard],
+  exports: [EmpleadoService]
 })
 export class EmpleadoModule {}

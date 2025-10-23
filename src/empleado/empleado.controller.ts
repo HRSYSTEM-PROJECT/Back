@@ -36,6 +36,7 @@ import { Employee } from './entities/empleado.entity';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/decorators/roles.decorator';
 import { Role } from 'src/rol/enums/role.enum';
+import { EmployeeLimitGuard } from 'src/auth/guards/employee-limit.guard';
 
 @ApiTags('Empleado')
 @Controller('empleado')
@@ -66,7 +67,7 @@ export class EmpleadoController {
   }
 
   //------------ Agregar Empleados -----------------//
-  @UseGuards(ClerkAuthGuard)
+  @UseGuards(ClerkAuthGuard, EmployeeLimitGuard) // <---- Se agregó guardián de limite de empleados
   @Post()
   @ApiOperation({
     summary: 'Crear nuevo empleado',
@@ -160,49 +161,46 @@ export class EmpleadoController {
   //   return this.empleadoService.update(id, dto, req.user);
   // }
 
-   // ✅ Actualizar empleado (refactorizado para form-data)
-    @UseGuards(ClerkAuthGuard)
-@Patch(':id')
-@UseInterceptors(
-  FileInterceptor('file', {
-    storage: memoryStorage(),
-    limits: { fileSize: 5 * 1024 * 1024 },
-    fileFilter: (req, file, cb) => {
-      if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
-        return cb(new Error('Solo se permiten imágenes'), false);
+  // ✅ Actualizar empleado (refactorizado para form-data)
+  @UseGuards(ClerkAuthGuard)
+  @Patch(':id')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (req, file, cb) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+          return cb(new Error('Solo se permiten imágenes'), false);
+        }
+        cb(null, true);
       }
-      cb(null, true);
-    }
+    })
+  )
+  @ApiConsumes('multipart/form-data') // 👈 clave
+  @ApiOperation({
+    summary: 'Actualizar empleado',
+    description:
+      'Actualiza la información de un empleado existente. Solo se actualizan los campos enviados.'
   })
-)
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateEmployeeDto,
+    @Req() req: AuthRequest,
+    @UploadedFile() file?: Express.Multer.File
+  ) {
+    console.log('Datos recibidos:', dto);
+    if (file) {
+      console.log('Archivo recibido:', {
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size
+      });
+      const imageUrl = await this.uploadService.uploadImage(file);
+      dto.imgUrl = imageUrl;
+    }
 
-@ApiConsumes('multipart/form-data') // 👈 clave
-@ApiOperation({
-  summary: 'Actualizar empleado',
-  description:
-    'Actualiza la información de un empleado existente. Solo se actualizan los campos enviados.'
-})
-async update(
-  @Param('id') id: string,
-  @Body() dto: UpdateEmployeeDto,
-  @Req() req: AuthRequest,
-  @UploadedFile() file?: Express.Multer.File
-) {
-   console.log('Datos recibidos:', dto);
-  if (file) {
-     console.log('Archivo recibido:', {
-    originalname: file.originalname,
-    mimetype: file.mimetype,
-    size: file.size
-  });
-    const imageUrl = await this.uploadService.uploadImage(file);
-    dto.imgUrl = imageUrl;
+    return this.empleadoService.update(id, dto, req.user);
   }
-
-  return this.empleadoService.update(id, dto, req.user);
-}
-
-
 
   // ✅ Eliminar empleado
   @UseGuards(ClerkAuthGuard)
@@ -211,8 +209,6 @@ async update(
     summary: 'Eliminar empleado',
     description: 'Elimina un empleado del sistema (soft delete)'
   })
-
-
   async remove(@Param('id') id: string, @Req() req: AuthRequest) {
     return this.empleadoService.remove(id, req.user);
   }
@@ -238,7 +234,6 @@ async update(
   //     year
   //   );
   // }
-
   async getAusenciasByEmpleado(
     @Param('id') employeeId: string,
     @Req() req: AuthRequest,
@@ -255,4 +250,5 @@ async update(
       page ? Number(page) : 1,
       limit ? Number(limit) : 10
     );
-  }  }
+  }
+}
