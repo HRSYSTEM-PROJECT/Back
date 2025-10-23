@@ -241,7 +241,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Recordatorio de cumpleaños
-  @Cron('0 9 * * *') //Cada 9:00 AM
+  @Cron('40 23 * * *')
   async checkBirthdays() {
     const cronName = 'checkBirthdays';
     this.logger.log('🎂 Verificando cumpleaños de empleados...');
@@ -272,7 +272,7 @@ export class NotificationsService {
   }
 
   // 🔔 CRON: Recordatorios de feriados
-  @Cron('0 9 * * *') // Cada 9:00 AM
+  @Cron('40 23 * * *')
   async checkHolidays() {
     const cronName = 'checkHolidays';
     this.logger.log('🎊 Verificando feriados...');
@@ -1046,10 +1046,10 @@ export class NotificationsService {
         '2025-10-23': 'Día de la Liberación de Libia'
       },
       Burundi: {
-        '2025-10-21': 'Día de Ndadaye (Melchior Ndadaye Day)' // Martes 21 de octubre
+        '2025-10-22': 'Día de Ndadaye (Melchior Ndadaye Day)'
       },
       burundi: {
-        '2025-10-21': 'Día de Ndadaye (Melchior Ndadaye Day)'
+        '2025-10-22': 'Día de Ndadaye (Melchior Ndadaye Day)'
       }
     };
 
