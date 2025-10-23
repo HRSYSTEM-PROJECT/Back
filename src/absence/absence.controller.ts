@@ -76,7 +76,7 @@ import { AuthUser } from 'src/decoradores/auth-user.decoratos';
 import type { AuthenticatedUser } from 'src/interfaces/authenticated-user.interface';
 import { SubscriptionGuard } from 'src/auth/guards/subscription.guard';
 
-@UseGuards(ClerkAuthGuard /*SubscriptionGuard*/) // <-------- Se agregó el guardián de suscripcion despues del guardian de clerk
+@UseGuards(ClerkAuthGuard, SubscriptionGuard) // <-------- Se agregó el guardián de suscripcion despues del guardian de clerk
 @ApiTags('Absence')
 @Controller('absence')
 export class AbsenceController {

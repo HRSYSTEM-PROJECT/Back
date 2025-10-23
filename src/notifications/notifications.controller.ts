@@ -25,7 +25,7 @@ import type { Request } from 'express';
 import { AuthenticatedUser } from '../interfaces/authenticated-user.interface';
 import { SubscriptionGuard } from 'src/auth/guards/subscription.guard';
 
-@UseGuards(ClerkAuthGuard /*SubscriptionGuard*/) // <-------- Se agregó el guardián de suscripcion despues del guardian de clerk
+@UseGuards(ClerkAuthGuard, SubscriptionGuard) // <-------- Se agregó el guardián de suscripcion despues del guardian de clerk
 @Controller('notifications')
 @ApiTags('Notificaciones')
 export class NotificationsController {
