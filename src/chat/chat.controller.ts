@@ -22,11 +22,12 @@ import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
 import { SendMessageDto } from './dto/send-message.dto';
 import { ClerkAuthGuard } from '../auth/guards/clerk.guard';
+import { SubscriptionGuard } from 'src/auth/guards/subscription.guard';
 
+@UseGuards(ClerkAuthGuard /*SubscriptionGuard*/) // <-------- Se agregó el guardián de suscripcion despues del guardian de clerk
+@Controller('chat')
 @ApiTags('Chat')
 @ApiBearerAuth()
-@UseGuards(ClerkAuthGuard)
-@Controller('chat')
 export class ChatController {
   constructor(
     private readonly chatService: ChatService,
