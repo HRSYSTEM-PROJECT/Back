@@ -295,7 +295,7 @@ export class ChatService {
     );
   }
 
-  // 📋 Obtener chats de un usuario (SOLO DE LA MISMA EMPRESA)
+  // 📋 Obtener chats de un usuario (SOLO DE LA MISMA EMPRESA) - CORREGIDO
   async getUserChats(
     userId: string,
     page: number = 1,
@@ -323,20 +323,41 @@ export class ChatService {
       );
     }
 
+    // Obtener los IDs de chats donde el usuario participa
+    const participantChats = await this.participantRepository
+      .createQueryBuilder('participant')
+      .select('participant.chat_id')
+      .where('participant.user_id = :userId', { userId })
+      .andWhere('participant.is_active = :isActive', { isActive: true })
+      .getMany();
+
+    const chatIds = participantChats.map((p) => p.chat_id);
+
+    if (chatIds.length === 0) {
+      return {
+        chats: [],
+        total: 0,
+        page,
+        limit,
+        totalPages: 0
+      };
+    }
+
+    // Ahora obtener los chats con todas las relaciones
     const [chats, total] = await this.chatRepository
       .createQueryBuilder('chat')
       .leftJoinAndSelect('chat.participants', 'participant')
       .leftJoinAndSelect('participant.user', 'user')
-      .leftJoinAndSelect('user.company', 'userCompany')
-      .leftJoinAndSelect('chat.creator', 'creator')
+      .leftJoinAndSelect('user.company', 'company')
       .leftJoinAndSelect('chat.messages', 'message')
-      .where('participant.user_id = :userId', { userId })
-      .andWhere('participant.is_active = :isActive', { isActive: true })
+      .leftJoinAndSelect('message.sender', 'sender')
+      .where('chat.id IN (:...chatIds)', { chatIds })
       .andWhere('chat.is_deleted = :isDeleted', { isDeleted: false })
-      .andWhere('userCompany.id = :companyId', {
+      .andWhere('company.id = :companyId', {
         companyId: currentUser.company.id
       })
       .orderBy('chat.updated_at', 'DESC')
+      .addOrderBy('message.created_at', 'ASC') // Ordenar mensajes por fecha
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();

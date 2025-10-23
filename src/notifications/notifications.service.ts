@@ -28,10 +28,6 @@ export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
   private readonly fromEmail: string;
 
-  /**
-   * Estado simple para que el frontend consulte cuándo corrió cada cron por última vez
-   * y si la última ejecución fue OK o falló.
-   */
   private cronStatus: Record<
     string,
     {

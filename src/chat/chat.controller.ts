@@ -22,12 +22,11 @@ import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
 import { SendMessageDto } from './dto/send-message.dto';
 import { ClerkAuthGuard } from '../auth/guards/clerk.guard';
-import { SubscriptionGuard } from 'src/auth/guards/subscription.guard';
 
-@UseGuards(ClerkAuthGuard /*SubscriptionGuard*/) // <-------- Se agregó el guardián de suscripcion despues del guardian de clerk
-@Controller('chat')
 @ApiTags('Chat')
 @ApiBearerAuth()
+@UseGuards(ClerkAuthGuard)
+@Controller('chat')
 export class ChatController {
   constructor(
     private readonly chatService: ChatService,
@@ -75,16 +74,22 @@ export class ChatController {
     await this.chatGateway.joinUsersToChat(chat.id);
 
     // Transformar el chat para enviar los participantes correctamente
+    const validParticipants = (chat.participants || [])
+      .filter((p) => p.user && p.user.id)
+      .map((participant) => ({
+        id: participant.user.id,
+        first_name: participant.user.first_name || '',
+        last_name: participant.user.last_name || '',
+        email: participant.user.email || '',
+        imgUrl: participant.user.profile_image_url || null
+      }));
+
     const transformedChat = {
-      ...chat,
-      participants:
-        chat.participants?.map((participant) => ({
-          id: participant.user?.id,
-          first_name: participant.user?.first_name,
-          last_name: participant.user?.last_name,
-          email: participant.user?.email,
-          profile_image_url: participant.user?.profile_image_url
-        })) || []
+      id: chat.id,
+      participants: validParticipants,
+      messages: [],
+      createdAt: chat.created_at,
+      updatedAt: chat.updated_at
     };
 
     return transformedChat;
@@ -114,17 +119,42 @@ export class ChatController {
     );
 
     // Transformar los chats para asegurar que los participantes se envíen correctamente
-    const transformedChats = result.chats.map((chat) => ({
-      ...chat,
-      participants:
-        chat.participants?.map((participant) => ({
-          id: participant.user?.id,
-          first_name: participant.user?.first_name,
-          last_name: participant.user?.last_name,
-          email: participant.user?.email,
-          profile_image_url: participant.user?.profile_image_url
-        })) || []
-    }));
+    const transformedChats = result.chats.map((chat) => {
+      // Filtrar participantes válidos
+      const validParticipants = (chat.participants || [])
+        .filter((p) => p.user && p.user.id)
+        .map((participant) => ({
+          id: participant.user.id,
+          first_name: participant.user.first_name || '',
+          last_name: participant.user.last_name || '',
+          email: participant.user.email || '',
+          imgUrl: participant.user.profile_image_url || null
+        }));
+
+      // Transformar mensajes
+      const transformedMessages = (chat.messages || []).map((msg) => ({
+        id: msg.id,
+        chatId: chat.id,
+        senderId: msg.sender_id,
+        content: msg.content,
+        type: msg.type,
+        reply_to_id: msg.reply_to_id,
+        file_url: msg.file_url,
+        file_name: msg.file_name,
+        file_type: msg.file_type,
+        file_size: msg.file_size,
+        created_at: msg.created_at,
+        updated_at: msg.updated_at
+      }));
+
+      return {
+        id: chat.id,
+        participants: validParticipants,
+        messages: transformedMessages,
+        createdAt: chat.created_at,
+        updatedAt: chat.updated_at
+      };
+    });
 
     return {
       ...result,
