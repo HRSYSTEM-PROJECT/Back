@@ -24,7 +24,7 @@ import { SendMessageDto } from './dto/send-message.dto';
 import { ClerkAuthGuard } from '../auth/guards/clerk.guard';
 import { SubscriptionGuard } from 'src/auth/guards/subscription.guard';
 
-@UseGuards(ClerkAuthGuard, SubscriptionGuard)
+@UseGuards(ClerkAuthGuard /*SubscriptionGuard*/) // <-------- Se agregó el guardián de suscripcion despues del guardian de clerk
 @Controller('chat')
 @ApiTags('Chat')
 @ApiBearerAuth()
