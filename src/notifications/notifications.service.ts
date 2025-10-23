@@ -911,7 +911,7 @@ export class NotificationsService {
     }
   }
 
-  // 🌐 Consultar API de feriados - OpenHolidays API (gratuita y confiable)
+  // 🌐 Consultar API de feriados - OpenHolidays API
   private async checkHolidayAPI(
     countryCode: string,
     date: Date
@@ -1031,9 +1031,8 @@ export class NotificationsService {
 
     // Feriados hardcodeados para países específicos
     const hardcodedHolidays: { [key: string]: { [key: string]: string } } = {
-      Hungría: {
-        '2025-10-23':
-          'Día de la República de Hungría y Día de la Revolución de 1956' // Jueves 23 de octubre
+      Argentina: {
+        '2025-10-23': 'Día de la Presentación final: Aprobados' // Jueves 23 de octubre
       },
       hungria: {
         '2025-10-23':
