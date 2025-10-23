@@ -11,13 +11,13 @@ export class IsFutureDateConstraint implements ValidatorConstraintInterface {
     const inputDate = new Date(date);
     const now = new Date();
 
-    // Agregar un margen de 1 minuto para evitar problemas de timing
-    const oneMinuteFromNow = new Date(now.getTime() + 60000);
+    // Agregar un margen de 30 segundos para evitar problemas de timing
+    const thirtySecondsFromNow = new Date(now.getTime() + 30000);
 
-    return inputDate > oneMinuteFromNow;
+    return inputDate > thirtySecondsFromNow;
   }
 
   defaultMessage() {
-    return 'La fecha debe ser futura (mínimo 1 minuto desde ahora)';
+    return 'La fecha debe ser futura (mínimo 30 segundos desde ahora)';
   }
 }

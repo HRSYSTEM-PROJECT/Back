@@ -27,72 +27,69 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   server: Server;
 
   private readonly logger = new Logger(ChatGateway.name);
-  private userSockets = new Map<string, string>(); // userId -> socketId
+  private userSockets = new Map<string, Socket>(); // userId -> Socket
   private socketUsers = new Map<string, string>(); // socketId -> userId
 
   constructor(
-    private chatService: ChatService,
-    private userService: UserService
+    private readonly chatService: ChatService,
+    private readonly userService: UserService
   ) {}
 
-  // 🔌 Manejar conexión
+  // 🔌 Conexión
   async handleConnection(client: Socket) {
     this.logger.log(`🔌 Cliente conectado: ${client.id}`);
 
     try {
-      // 🔐 Validar token JWT
       const token =
-        client.handshake.auth?.token || client.handshake.query?.token;
+        (client.handshake.auth?.token as string) ||
+        (client.handshake.query?.token as string);
 
       if (!token) {
-        this.logger.warn(`❌ Conexión rechazada: Sin token`);
-        client.disconnect();
-        return;
+        this.logger.warn('❌ Sin token, desconectando cliente');
+        return client.disconnect();
       }
 
-      // Verificar token de Clerk
       const payload = await verifyToken(token, { secretKey: CLERK_SECRET_KEY });
       const clerkUserId = payload.sub;
 
       if (!clerkUserId) {
-        this.logger.warn(`❌ Conexión rechazada: Token de Clerk inválido`);
-        client.disconnect();
-        return;
+        this.logger.warn('❌ Token de Clerk inválido');
+        return client.disconnect();
       }
 
-      // Buscar usuario en DB
       const userDB = await this.userService.findByClerkId(clerkUserId);
       if (!userDB) {
-        this.logger.warn(`❌ Conexión rechazada: Usuario no encontrado en DB`);
-        client.disconnect();
-        return;
+        this.logger.warn('❌ Usuario no encontrado en DB');
+        return client.disconnect();
       }
 
-      // ✅ Usuario autenticado
-      this.userSockets.set(userDB.id, client.id);
+      // Guardar relación
+      this.userSockets.set(userDB.id, client);
       this.socketUsers.set(client.id, userDB.id);
 
-      // Unir al usuario a sus chats
       await this.joinUserChats(client, userDB.id);
 
-      this.logger.log(
-        `✅ Usuario ${userDB.id} (${userDB.email}) autenticado y conectado`
-      );
-    } catch (error) {
-      this.logger.warn(`❌ Conexión rechazada: ${error.message}`);
+      this.logger.log(`✅ Usuario ${userDB.id} conectado`);
+      
+      // 📢 Notificar a todos que este usuario se conectó
+      this.server.emit('user_connected', { userId: userDB.id });
+    } catch (error: any) {
+      this.logger.error(`❌ Error en conexión: ${error.message}`);
       client.disconnect();
     }
   }
 
-  // 🔌 Manejar desconexión
+  // 🔌 Desconexión
   handleDisconnect(client: Socket) {
-    this.logger.log(`🔌 Cliente desconectado: ${client.id}`);
-
     const userId = this.socketUsers.get(client.id);
+
     if (userId) {
       this.userSockets.delete(userId);
       this.socketUsers.delete(client.id);
       this.logger.log(`👤 Usuario ${userId} desconectado`);
+      
+      // 📢 Notificar a todos que este usuario se desconectó
+      this.server.emit('user_disconnected', { userId });
     }
   }
 
@@ -103,10 +100,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { chatId: string; message: SendMessageDto }
   ) {
     const userId = this.socketUsers.get(client.id);
-    if (!userId) {
-      client.emit('error', { message: 'Usuario no autenticado' });
-      return;
-    }
+    if (!userId) return client.emit('error', { message: 'Usuario no autenticado' });
 
     try {
       const message = await this.chatService.sendMessage(
@@ -115,29 +109,28 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         data.message
       );
 
-      // Enviar mensaje a todos los participantes del chat
-      await this.broadcastToChat(data.chatId, 'new_message', message);
+      // Transformar el mensaje para incluir el chatId
+      const messageToSend = {
+        ...message,
+        chatId: data.chatId
+      };
 
-      this.logger.log(
-        `💬 Mensaje enviado en chat ${data.chatId} por usuario ${userId}`
-      );
+      this.broadcastToChat(data.chatId, 'new_message', messageToSend);
+      this.logger.log(`💬 Mensaje enviado en chat ${data.chatId}`);
     } catch (error: any) {
+      this.logger.error(`❌ Error enviando mensaje: ${error.message}`);
       client.emit('error', { message: error.message });
-      this.logger.error(`❌ Error enviando mensaje:`, error);
     }
   }
 
-  // 📝 Editar mensaje
+  // ✏️ Editar mensaje
   @SubscribeMessage('edit_message')
   async handleEditMessage(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { messageId: string; content: string }
   ) {
     const userId = this.socketUsers.get(client.id);
-    if (!userId) {
-      client.emit('error', { message: 'Usuario no autenticado' });
-      return;
-    }
+    if (!userId) return client.emit('error', { message: 'Usuario no autenticado' });
 
     try {
       const message = await this.chatService.editMessage(
@@ -146,15 +139,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         data.content
       );
 
-      // Enviar mensaje editado a todos los participantes del chat
-      await this.broadcastToChat(message.chat_id, 'message_edited', message);
-
-      this.logger.log(
-        `✏️ Mensaje editado ${data.messageId} por usuario ${userId}`
-      );
+      this.broadcastToChat(message.chat_id, 'message_edited', message);
     } catch (error: any) {
+      this.logger.error(`❌ Error editando mensaje: ${error.message}`);
       client.emit('error', { message: error.message });
-      this.logger.error(`❌ Error editando mensaje:`, error);
     }
   }
 
@@ -162,65 +150,43 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('delete_message')
   async handleDeleteMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { messageId: string }
+    @MessageBody() data: { messageId: string; chatId: string }
   ) {
     const userId = this.socketUsers.get(client.id);
-    if (!userId) {
-      client.emit('error', { message: 'Usuario no autenticado' });
-      return;
-    }
+    if (!userId) return client.emit('error', { message: 'Usuario no autenticado' });
 
     try {
       await this.chatService.deleteMessage(userId, data.messageId);
 
-      // Notificar eliminación a todos los participantes del chat
-      await this.broadcastToChat(data.messageId, 'message_deleted', {
+      this.broadcastToChat(data.chatId, 'message_deleted', {
         messageId: data.messageId
       });
-
-      this.logger.log(
-        `🗑️ Mensaje eliminado ${data.messageId} por usuario ${userId}`
-      );
     } catch (error: any) {
+      this.logger.error(`❌ Error eliminando mensaje: ${error.message}`);
       client.emit('error', { message: error.message });
-      this.logger.error(`❌ Error eliminando mensaje:`, error);
     }
   }
 
-  // 👤 Marcar mensajes como leídos
+  // 👁️ Marcar como leído
   @SubscribeMessage('mark_as_read')
   async handleMarkAsRead(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { chatId: string }
   ) {
     const userId = this.socketUsers.get(client.id);
-    if (!userId) {
-      client.emit('error', { message: 'Usuario no autenticado' });
-      return;
-    }
+    if (!userId) return client.emit('error', { message: 'Usuario no autenticado' });
 
     try {
-      // Actualizar timestamp de última lectura
       await this.chatService.getChatMessages(data.chatId, userId, 1, 1);
-
-      // Notificar a otros participantes que el usuario leyó los mensajes
-      await this.broadcastToChat(
+      this.broadcastToChat(
         data.chatId,
         'messages_read',
-        {
-          userId,
-          chatId: data.chatId,
-          timestamp: new Date()
-        },
+        { userId, chatId: data.chatId, timestamp: new Date() },
         userId
       );
-
-      this.logger.log(
-        `👤 Mensajes marcados como leídos en chat ${data.chatId} por usuario ${userId}`
-      );
     } catch (error: any) {
+      this.logger.error(`❌ Error marcando como leído: ${error.message}`);
       client.emit('error', { message: error.message });
-      this.logger.error(`❌ Error marcando mensajes como leídos:`, error);
     }
   }
 
@@ -231,18 +197,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { chatId: string }
   ) {
     const userId = this.socketUsers.get(client.id);
-    if (!userId) {
-      client.emit('error', { message: 'Usuario no autenticado' });
-      return;
-    }
+    if (!userId) return client.emit('error', { message: 'Usuario no autenticado' });
 
-    try {
-      client.join(`chat_${data.chatId}`);
-      this.logger.log(`👥 Usuario ${userId} se unió al chat ${data.chatId}`);
-    } catch (error: any) {
-      client.emit('error', { message: error.message });
-      this.logger.error(`❌ Error uniéndose al chat:`, error);
-    }
+    client.join(`chat_${data.chatId}`);
+    this.logger.log(`👥 Usuario ${userId} se unió al chat ${data.chatId}`);
   }
 
   // 🚪 Salir de un chat
@@ -252,95 +210,40 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { chatId: string }
   ) {
     const userId = this.socketUsers.get(client.id);
-    if (!userId) {
-      client.emit('error', { message: 'Usuario no autenticado' });
-      return;
-    }
+    if (!userId) return client.emit('error', { message: 'Usuario no autenticado' });
 
-    try {
-      client.leave(`chat_${data.chatId}`);
-      this.logger.log(`🚪 Usuario ${userId} salió del chat ${data.chatId}`);
-    } catch (error: any) {
-      client.emit('error', { message: error.message });
-      this.logger.error(`❌ Error saliendo del chat:`, error);
-    }
+    client.leave(`chat_${data.chatId}`);
+    this.logger.log(`🚪 Usuario ${userId} salió del chat ${data.chatId}`);
   }
 
-  // 🔧 Métodos auxiliares
-
-  // Unir usuario a todos sus chats
+  // 🔧 Auxiliares
   private async joinUserChats(client: Socket, userId: string) {
     try {
       const { chats } = await this.chatService.getUserChats(userId);
-
-      for (const chat of chats) {
-        client.join(`chat_${chat.id}`);
-      }
-
+      chats.forEach((chat) => client.join(`chat_${chat.id}`));
       this.logger.log(`👥 Usuario ${userId} unido a ${chats.length} chats`);
     } catch (error: any) {
-      this.logger.error(`❌ Error uniendo usuario a chats:`, error);
+      this.logger.error(`❌ Error uniendo usuario a chats: ${error.message}`);
     }
   }
 
-  // 🔗 Método público para unir usuarios a un chat específico
+  // 🔗 Unir usuarios específicos a un chat (usado por el Controller)
   async joinUsersToChat(chatId: string) {
     try {
-      // Verificar que el servidor esté inicializado
-      if (!this.server) {
-        this.logger.warn(`⚠️ Servidor WebSocket no inicializado`);
-        return;
-      }
-
-      // Obtener todos los participantes del chat
       const participants = await this.chatService.getChatParticipants(chatId);
-
-      if (!participants || participants.length === 0) {
-        this.logger.warn(
-          `⚠️ No se encontraron participantes para el chat ${chatId}`
-        );
-        return;
-      }
-
-      let joinedCount = 0;
-
-      for (const participant of participants) {
-        const socketId = this.userSockets.get(participant.user_id);
-        if (socketId) {
-          try {
-            // Obtener todos los sockets y buscar el correcto
-            const sockets = await this.server.fetchSockets();
-            const socket = sockets.find((s) => s.id === socketId);
-            if (socket) {
-              socket.join(`chat_${chatId}`);
-              joinedCount++;
-              this.logger.log(
-                `👥 Usuario ${participant.user_id} unido al chat ${chatId}`
-              );
-            } else {
-              this.logger.warn(
-                `⚠️ Socket ${socketId} no encontrado para usuario ${participant.user_id}`
-              );
-            }
-          } catch (err) {
-            this.logger.error(`❌ Error obteniendo socket ${socketId}:`, err);
-          }
-        } else {
-          this.logger.warn(
-            `⚠️ Usuario ${participant.user_id} no está conectado`
-          );
+      
+      participants.forEach((participant) => {
+        const socket = this.userSockets.get(participant.user_id);
+        if (socket) {
+          socket.join(`chat_${chatId}`);
+          this.logger.log(`👥 Usuario ${participant.user_id} unido al nuevo chat ${chatId}`);
         }
-      }
-
-      this.logger.log(
-        `✅ ${joinedCount} usuarios unidos al chat ${chatId} de ${participants.length} participantes`
-      );
+      });
     } catch (error: any) {
-      this.logger.error(`❌ Error uniendo usuarios al chat ${chatId}:`, error);
+      this.logger.error(`❌ Error uniendo usuarios al chat: ${error.message}`);
     }
   }
 
-  // Enviar mensaje a todos los participantes de un chat
   private broadcastToChat(
     chatId: string,
     event: string,
@@ -348,37 +251,34 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     excludeUserId?: string
   ) {
     const room = `chat_${chatId}`;
-
     if (excludeUserId) {
-      const excludeSocketId = this.userSockets.get(excludeUserId);
-      if (excludeSocketId) {
-        this.server.to(room).except(excludeSocketId).emit(event, data);
-      } else {
-        this.server.to(room).emit(event, data);
-      }
+      const excludeSocket = this.userSockets.get(excludeUserId);
+      if (excludeSocket) this.server.to(room).except(excludeSocket.id).emit(event, data);
+      else this.server.to(room).emit(event, data);
     } else {
       this.server.to(room).emit(event, data);
     }
   }
 
-  // Enviar notificación a un usuario específico
   sendNotificationToUser(userId: string, event: string, data: any) {
-    const socketId = this.userSockets.get(userId);
-    if (socketId) {
-      this.server.to(socketId).emit(event, data);
+    const socket = this.userSockets.get(userId);
+    if (socket) {
+      socket.emit(event, data);
       this.logger.log(`📨 Notificación enviada a usuario ${userId}: ${event}`);
     } else {
       this.logger.warn(`⚠️ Usuario ${userId} no está conectado`);
     }
   }
 
-  // Obtener usuarios conectados en un chat
   async getConnectedUsersInChat(chatId: string): Promise<string[]> {
-    const room = `chat_${chatId}`;
-    const sockets = await this.server.in(room).fetchSockets();
-
+    const sockets = await this.server.in(`chat_${chatId}`).fetchSockets();
     return sockets
       .map((socket) => this.socketUsers.get(socket.id))
-      .filter((userId) => userId !== undefined);
+      .filter((id): id is string => !!id);
+  }
+
+  // 📊 Obtener usuarios conectados (útil para el frontend)
+  getConnectedUserIds(): string[] {
+    return Array.from(this.userSockets.keys());
   }
 }
